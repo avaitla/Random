@@ -145,6 +145,9 @@ typedef struct tree_desc {
 
 typedef struct global_context
 {
+
+    int level;
+
     int  ifd;                               /* input file descriptor */
     int  ofd;                               /* output file descriptor */
 
@@ -213,9 +216,60 @@ global_context* init_global_context(unsigned long block_chunk_size, unsigned int
 
 
 
+#define MIN_MATCH 3
+#define MAX_MATCH 258
+
+#define STORED 0
+#define COMPRESSED 1
+
+
+#define WSIZE 0x8000     /* window size--must be a power of two, and */
+#define MIN_LOOKAHEAD (MAX_MATCH+MIN_MATCH+1)
+#define MAX_DIST  (WSIZE-MIN_LOOKAHEAD)
+
+#define UNKNOWN 0xffff
+#define BINARY 0
+#define ASCII 1
+
+#define DIST_BUFSIZE 0x8000 /* buffer for distances, see trees.c */
+#define H_SHIFT  ((HASH_BITS+MIN_MATCH-1)/MIN_MATCH)
+
+# define tab_prefix prev /* hash link (see deflate.c) */
+//# define head (prev+WSIZE) /* hash head (see deflate.c) */
+
+typedef ush Pos;
+typedef unsigned IPos;
 
 typedef struct thread_context
 {
+
+int attr;
+int method;
+ush deflate_flags;
+
+char* full_output_buffer;
+unsigned int full_output_block_length;
+unsigned int block_number;
+unsigned int full_input_buffer_size;
+
+int last_block;
+
+ush bl_count[MAX_BITS+1];
+
+
+/* length code for each normalized match length (0 == MIN_MATCH) */
+
+
+Pos prev[WSIZE];
+
+
+    tree_desc l_desc;// = {dyn_ltree, static_ltree, extra_lbits, LITERALS+1, L_CODES, MAX_BITS, 0};
+
+    tree_desc d_desc;// = {dyn_dtree, static_dtree, extra_dbits, 0, D_CODES, MAX_BITS, 0};
+
+    tree_desc bl_desc;// = {bl_tree, (ct_data near *)0, extra_blbits, 0, BL_CODES, MAX_BL_BITS, 0};
+
+    int compr_level;
     unsigned insize; /* valid bytes in inbuf */
     unsigned inptr;  /* index of next byte to be processed in inbuf */
     unsigned outcnt; /* bytes in output buffer */
@@ -248,7 +302,11 @@ typedef struct thread_context
     unsigned good_match;
     int nice_match;
 
+    int* file_type;
+    int* file_method;
 
+    int compressed_len;
+    int input_len;
 
     ct_data dyn_ltree[HEAP_SIZE];   /* literal and length tree */
     ct_data dyn_dtree[2*D_CODES+1]; /* distance tree */
@@ -272,13 +330,14 @@ typedef struct thread_context
 //    tree_desc d_desc = {dyn_dtree, static_dtree, extra_dbits, 0, D_CODES, MAX_BITS, 0};
 //    tree_desc bl_desc = {bl_tree, (ct_data near *)0, extra_blbits, 0, BL_CODES, MAX_BL_BITS, 0};
 
-    ush bl_count[MAX_BITS+1];
     /* number of codes at each bit length for an optimal tree */
 
 //    uch bl_order[BL_CODES]    = {16,17,18,0,8,7,9,6,10,5,11,4,12,3,13,2,14,1,15};
     /* The lengths of the bit length codes are sent in order of decreasing
      * probability, to avoid transmitting the lengths for unused bit length codes.
      */
+
+uch length_code[MAX_MATCH-MIN_MATCH+1];
 
     int heap[2*L_CODES+1]; /* heap used to build the Huffman trees */
     int heap_len;               /* number of elements in the heap */
@@ -330,9 +389,6 @@ ulg window_size;//= (ulg)2*WSIZE;
 
 } thread_context;
 
-typedef ush Pos;
-typedef unsigned IPos;
-
 // Extern Declarations
 // gzip.c
 
@@ -353,7 +409,7 @@ extern int longest_match(unsigned cur_match, thread_context* tc);
 extern void check_match(unsigned start, IPos match, int length, thread_context* tc);
 extern void fill_window(thread_context* tc);
 extern unsigned long deflate(global_context* gc);
-extern unsigned long deflate_work(thread_context* tc);
+extern void* deflate_work(void* tc);
 
 // trees.c
 
@@ -420,7 +476,6 @@ int fill_inbuf(int eof_ok, thread_context* tc);
 void flush_outbuf(thread_context* tc);
 void flush_window(thread_context* tc);
 char *strlwr(char* s);
-void display_ratio(long num, long den, FILE *file);
 void* xmalloc(unsigned size);
 
 

@@ -1,4 +1,6 @@
 #include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
 #include "contexts.h"
 
 #define HASH_BITS  14
@@ -80,21 +82,22 @@ static config configuration_table[10] = {
  */
 #define INSERT_STRING(s, match_head) \
    (UPDATE_HASH(tc->ins_h, tc->window[(s) + MIN_MATCH-1]), \
-    tc->prev[(s) & WMASK] = tc->match_head = tc->head[tc->ins_h], \
-    tc->head[tc->ins_h] = (s))
+    tc->prev[(s) & WMASK] = match_head = (tc->prev + WSIZE)[tc->ins_h], \
+    (tc->prev + WSIZE)[tc->ins_h] = (s))
 
 /* ===========================================================================
  * Initialize the "longest match" routines for a new file
  */
 void lm_init (int pack_level, ush* flags, thread_context* tc)
 {
-    register unsigned j;
+    unsigned int j;
 
     if (pack_level < 1 || pack_level > 9) error("bad pack level");
     tc->compr_level = pack_level;
 
+
     /* Initialize the hash table. */
-    memzero((char*)tc->head, HASH_SIZE*sizeof(*(tc->head)));
+    for (j = 0;  j < HASH_SIZE; j++) (tc->prev + WSIZE)[j] = NIL;
 
     /* Set the default configuration parameters:
      */
@@ -168,8 +171,8 @@ void fill_window(thread_context* tc)
         tc->block_start -= (long) WSIZE;
 
         for (n = 0; n < HASH_SIZE; n++) {
-            m = tc->head[n];
-            tc->head[n] = (Pos)(m >= WSIZE ? m-WSIZE : NIL);
+            m = (tc->prev + WSIZE)[n];
+            (tc->prev + WSIZE)[n] = (Pos)(m >= WSIZE ? m-WSIZE : NIL);
         }
         for (n = 0; n < WSIZE; n++) {
             m = tc->prev[n];
@@ -182,7 +185,7 @@ void fill_window(thread_context* tc)
     }
     /* At this point, more >= 2 */
     if (!tc->eofile) {
-        n = thread_read_buf((char*)(tc->window+tc->strstart+tc->lookahead), more);
+        n = thread_read_buf((char*)(tc->window+tc->strstart+tc->lookahead), more, tc);
         if (n == 0 || n == (unsigned)EOF) {
             tc->eofile = 1;
         } else {
@@ -199,7 +202,7 @@ int longest_match(IPos cur_match, thread_context* tc)
     register uch *match;                                /* matched string */
     register int len;                                   /* length of current match */
     int best_len = tc->prev_length;                     /* best match length so far */
-    IPos limit = strstart > (IPos)MAX_DIST ? tc->strstart - (IPos)MAX_DIST : NIL;
+    IPos limit = tc->strstart > (IPos)MAX_DIST ? tc->strstart - (IPos)MAX_DIST : NIL;
 
     /* Stop when cur_match becomes <= limit. To simplify the code,
      * we prevent matches with the string of window index 0.
@@ -218,7 +221,7 @@ int longest_match(IPos cur_match, thread_context* tc)
 
     /* Do not waste too much time if we already have a good match: */
     if (tc->prev_length >= tc->good_match) { chain_length >>= 2; }
-    Assert(tc->strstart <= window_size-MIN_LOOKAHEAD, "insufficient lookahead");
+    Assert(tc->strstart <= tc->window_size-MIN_LOOKAHEAD, "insufficient lookahead");
 
     do {
         Assert(cur_match < tc->strstart, "no future");
@@ -254,7 +257,7 @@ int longest_match(IPos cur_match, thread_context* tc)
         /* The funny "do {}" generates better code on most compilers */
 
         /* Here, scan <= window+strstart+257 */
-        Assert(scan <= tc->window+(unsigned)(window_size-1), "wild scan");
+        Assert(scan <= tc->window+(unsigned)(tc->window_size-1), "wild scan");
         if (*scan == *match) scan++;
 
         len = (MAX_MATCH - 1) - (int)(strend-scan);
@@ -334,7 +337,7 @@ local void check_match(IPos start, IPos match, int length, thread_context* tc)
     }
 }
 #else
-#  define check_match(start, match, length)
+#  define check_match(start, match, length, tc)
 #endif
 
 
@@ -343,15 +346,14 @@ local void check_match(IPos start, IPos match, int length, thread_context* tc)
 
 
 #  define tab_prefix prev    /* hash link (see deflate.c) */
-#  define head (prev+WSIZE)  /* hash head (see deflate.c) */
+//#  define head (prev+WSIZE)  /* hash head (see deflate.c) */
 
 /* ===========================================================================
  * Flush the current block, with given end-of-file flag.
  * IN assertion: strstart is set to the end of the current match.
  */
 #define FLUSH_BLOCK(eof) \
-   flush_block(tc->block_start >= 0L ? (char*)&(tc->window[(unsigned)(tc->block_start)] : \
-                (char*)NULL, (long)(tc->strstart - tc->block_start), (eof), tc)
+   flush_block(tc->block_start >= 0L ? (char*)&(tc->window[(unsigned)(tc->block_start)]) : (char*)NULL, (long)(tc->strstart - tc->block_start), (eof), tc)
 
 
 /* ===========================================================================
@@ -359,8 +361,9 @@ local void check_match(IPos start, IPos match, int length, thread_context* tc)
  * evaluation for matches: a match is finally adopted only if there is
  * no better match at the next window position.
  */
-ulg deflate_work(thread_context* tc)
+void* deflate_work(void* arg)
 {
+    thread_context* tc = (thread_context*)arg;
     IPos hash_head;          /* head of hash chain */
     IPos prev_match;         /* previous match */
     int flush;               /* set if current block must be flushed */
@@ -428,7 +431,7 @@ ulg deflate_work(thread_context* tc)
             match_available = 0;
             match_length = MIN_MATCH-1;
             tc->strstart++;
-            if (flush) FLUSH_BLOCK(0), tc->block_start = tc->strstart;
+            if (flush) { FLUSH_BLOCK(0), tc->block_start = tc->strstart; }
 
         } else if (match_available) {
             /* If there was no match at the previous position, output a
@@ -461,9 +464,9 @@ ulg deflate_work(thread_context* tc)
     }
     if(match_available) ct_tally (0, tc->window[tc->strstart-1]);
 
-    if(tc->is_last_chunk)
-        return FLUSH_BLOCK(1); /* eof */
-    else return FLUSH_BLOCK(0);
+    if(tc->last_block) FLUSH_BLOCK(1); /* eof */
+    else FLUSH_BLOCK(0);
+    return NULL;
 }
 
 
@@ -476,7 +479,7 @@ void thread_context_init(global_context* gc, thread_context* tc)
 {
     bi_init(tc);
     ct_init(&(tc->attr), &(tc->method));
-    lm_init(gc->level, &(tc->deflate_flags));
+    lm_init(gc->level, &(tc->deflate_flags), tc);
 }
 
 
@@ -514,7 +517,7 @@ thread_context* grab_another_block(global_context* gc, thread_context* tc)
         tc->last_block = 1;
         file_read(tc->full_input_buffer, gc->bytes_to_read, gc);
         gc->bytes_in += gc->bytes_to_read;
-        gc->last_block_number = gc_block_number - 1;
+        gc->last_block_number = gc->block_number - 1;
         gc->bytes_to_read = 0; 
     }
 
@@ -525,7 +528,7 @@ thread_context* grab_another_block(global_context* gc, thread_context* tc)
 void* io_out_function(void* arg)
 {
     global_context* gc = (global_context*) arg;
-    simple_queue* q = initialize_queue();
+    queue* q = initialize_queue();
 
     while(1)
     {
@@ -548,7 +551,7 @@ void* io_out_function(void* arg)
 
             while(remaining_bytes != 0)
             {
-                unsigned int n = write(gc->outfd, data->buffer + written_bytes, remaining_bytes);
+                unsigned int n = write(gc->ofd, data->buffer + written_bytes, remaining_bytes);
 	            if (n == (unsigned)-1) write_error();
                 remaining_bytes -= n; written_bytes += n;
 	        }
@@ -578,7 +581,7 @@ ulg deflate(global_context* gc)
         dispatch(gc->pool, deflate_work, (void*)tc);
     }
 
-    queue* temp = initialize_queue()
+    queue* temp = initialize_queue();
     while(1)
     {
         pthread_mutex_lock(&(gc->output_block_lock));                  
@@ -591,36 +594,36 @@ ulg deflate(global_context* gc)
             pthread_mutex_lock(&(gc->output_fd_lock));            
             while(!queue_empty(temp))
             {
-                tc = (thread_context*) dequeue(temp);
+                thread_context* tc = (thread_context*) dequeue(temp);
                 quick_data* q = (quick_data*) malloc(sizeof(quick_data));
                 q->buffer = (char*)malloc(tc->full_output_block_length);
-                memcpy(q->buffer, tc->full_output_block, tc->full_output_block_length);
+                memcpy(q->buffer, tc->full_output_buffer, tc->full_output_block_length);
                 q->length = tc->full_output_block_length;
                 if(gc->bytes_to_read != 0)
                 {                    
                     tc = grab_another_block(gc, tc);
                     dispatch(gc->pool, deflate_work, (void*)tc);
                 }                    
-                insert_into_sorted_linked_list(tc->processed_blocks , (void*)q);
+                insert_into_sorted_linked_list(gc->processed_blocks, tc->block_number, (void*)q);
             }
             pthread_mutex_unlock(&(gc->output_fd_lock));
         }
             
         first_pass = 0;
-        if(tc->processed_blocks->head != NULL)
+        if(gc->processed_blocks->head != NULL)
         {
-            while(tc->processed_blocks->head->index == gc->next_block_to_output)
+            while(gc->processed_blocks->head->index == gc->next_block_to_output)
             {
+                if(gc->last_block_number == gc->processed_blocks->head->index) { quit_flag = 1; }
                 if(first_pass == 0)
                 {   pthread_mutex_lock(&(gc->output_block_lock));
                     first_pass = 1; }
 
                 gc->next_block_to_output += 1;
                 gc->blocks_read -= 1;
-                void* block = (void*) pop_top(tc->processed_blocks);
-                enqueue(output_queue, block);
-                if(tc->last_block) { quit_flag = 1; }
-                if(tc->processed_blocks->head == NULL) { break; }
+                void* block = (void*) pop_top(gc->processed_blocks);
+                enqueue(gc->output_queue, block);
+                if(gc->processed_blocks->head == NULL) { break; }
             }
         }
         

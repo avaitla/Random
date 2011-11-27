@@ -154,31 +154,6 @@ char *strlwr(char* s)
 }
 
 
-
-/* ========================================================================
- * Display compression ratio on the given stream on 6 characters.
- */
-void display_ratio(long num, long den, FILE *file)
-{
-    long ratio;  /* 1000 times the compression ratio */
-
-    if (den == 0) {
-	ratio = 0; /* no compression */
-    } else if (den < 2147483L) { /* (2**31 -1)/1000 */
-	ratio = 1000L*num/den;
-    } else {
-	ratio = num/(den/1000L);
-    }
-    if (ratio < 0) {
-	putc('-', file);
-	ratio = -ratio;
-    } else {
-	putc(' ', file);
-    }
-    fprintf(file, "%2ld.%1ld%%", ratio / 10L, ratio % 10L);
-}
-
-
 /* ========================================================================
  * Semi-safe malloc -- never returns NULL.
  */
