@@ -53,16 +53,6 @@ typedef unsigned long  ulg;
 #define BL_CODES  19
 /* number of codes used to transfer the bit lengths */
 
-
-int extra_lbits[LENGTH_CODES] /* extra bits for each length code */
-   = {0,0,0,0,0,0,0,0,1,1,1,1,2,2,2,2,3,3,3,3,4,4,4,4,5,5,5,5,0};
-
-int extra_dbits[D_CODES] /* extra bits for each distance code */
-   = {0,0,0,0,1,1,2,2,3,3,4,4,5,5,6,6,7,7,8,8,9,9,10,10,11,11,12,12,13,13};
-
-int extra_blbits[BL_CODES]/* extra bits for each bit length code */
-   = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,3,7};
-
 #define STORED_BLOCK 0
 #define STATIC_TREES 1
 #define DYN_TREES    2
@@ -199,19 +189,7 @@ typedef struct quick_data
     char* buffer;
 } quick_data;
 
-global_context* init_global_context(unsigned long block_chunk_size, unsigned int number_of_threads)
-{
-    global_context* gc = (global_context*) malloc(sizeof(global_context));
-    gc->ifd = 0; gc->ofd = 0; gc->in_filepath = NULL; gc->out_filepath = NULL;
-    gc->decompress = 0; gc->ifile_size = 0LL; gc->bytes_in = 0LL; gc->bytes_out = 0LL;
-    gc->header_bytes = 0; gc->block_chunk_size = block_chunk_size; 
-    gc->number_of_threads = number_of_threads; gc->pool = NULL;
-    gc->blocks_read = 0; gc->processed_blocks = NULL;
-    gc->compr_level = 6; gc->crc = 0; gc->work = NULL;
-    pthread_mutex_init(&(gc->output_block_lock), NULL);
-    pthread_cond_init(&(gc->take_io_action), NULL);
-    gc->block_number = 1; return gc;
-}
+
 
 
 
@@ -392,6 +370,7 @@ ulg window_size;//= (ulg)2*WSIZE;
 // Extern Declarations
 // gzip.c
 
+extern global_context* init_global_context(unsigned long block_chunk_size, unsigned int number_of_threads);
 extern int create_outfile(global_context* gc);
 extern void treatfile(global_context* gc);
 extern int abort_gzip();
@@ -454,6 +433,13 @@ extern void set_file_type  (thread_context* tc);
 
 #define NO_FILE  (-1)   /* in memory compression */
 #define OUTBUFSIZ  16384  /* output buffer size */
+
+#define verbose 0
+#define seekable() 0
+#define Trace(x) {if(verbose) fprintf x ;}  
+#define Tracev(x) {if (verbose) fprintf x ;}
+#define Tracevv(x) {if (verbose) fprintf x; }
+#define Assert(cond,msg) {if(!(cond)) error(msg);}
 
 void bi_init(thread_context* tc);
 void send_bits(int value, int length, thread_context* tc);

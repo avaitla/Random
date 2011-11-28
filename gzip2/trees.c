@@ -83,6 +83,15 @@ static char rcsid[] = "$Id: trees.c,v 0.12 1993/06/10 13:27:54 jloup Exp $";
  */
 
 
+int extra_lbits[LENGTH_CODES] /* extra bits for each length code */
+   = {0,0,0,0,0,0,0,0,1,1,1,1,2,2,2,2,3,3,3,3,4,4,4,4,5,5,5,5,0};
+
+int extra_dbits[D_CODES] /* extra bits for each distance code */
+   = {0,0,0,0,1,1,2,2,3,3,4,4,5,5,6,6,7,7,8,8,9,9,10,10,11,11,12,12,13,13};
+
+int extra_blbits[BL_CODES]/* extra bits for each bit length code */
+   = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,3,7};
+
 
 
 
@@ -695,7 +704,7 @@ ulg flush_block(char* buf, ulg stored_len, int eof, thread_context* tc)
 #ifdef FORCE_METHOD
     if (tc->level == 1 && eof && tc->compressed_len == 0L) { /* force stored file */
 #else
-    if (stored_len <= opt_lenb && eof && tc->compressed_len == 0L && seekable()) {
+    if (stored_len <= opt_lenb && eof && tc->compressed_len == 0L) {
 #endif
         /* Since LIT_BUFSIZE <= 2*WSIZE, the input data must be there: */
         if (buf == (char*)0) error ("block vanished");
