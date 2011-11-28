@@ -6,6 +6,8 @@
 #include <fcntl.h>
 #include "contexts.h"
 
+
+
 int create_outfile(global_context* gc)
 {
     struct stat	ostat;

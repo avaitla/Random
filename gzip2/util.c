@@ -1,9 +1,3 @@
-/* util.c -- utility functions for gzip support
- * Copyright (C) 1992-1993 Jean-loup Gailly
- * This is free software; you can redistribute it and/or modify it under the
- * terms of the GNU General Public License, see the file COPYING.
- */
-
 #include <ctype.h>
 #include <errno.h>
 #include <sys/types.h>
@@ -14,57 +8,62 @@
 #include <string.h>
 #include "contexts.h"
 
-#define INBUFSIZ  0x8000  /* input buffer size */
-#define OK      0
-#define ERROR   1
-#define WARNING 2
+// Thread Context Variables Directly Used / Managed
+//      unsigned outcnt - bytes in output buffer
+//      unsigned insize - valid bytes in inbuf
+//      unsigned inptr - index of next byte to be processed in inbuf
+//      long bytes_in - number of input bytes
+//      long bytes_out - number of output bytes
+//
+//      unsigned int full_input_buffer_remaining_bytes - See deflate.c
+//      (unsigned char)* inbuf - See deflate.c
+//      char* full_input_buffer - See deflate.c
+//      unsigned int full_input_buffer_bytes_read - See deflate.c
+//      vector output_vector - Type Defined in threads.c, usage given in deflate.c
+//      (unsigned char)* outbuf - See deflate.c
 
-extern ulg crc_32_tab[];   /* crc table, defined below */
+
+// Functions Defined
+//      void write_buf(void* buf, unsigned cnt, thread_context* tc) - writes buf with length cnt directly into the
+//                                                                    resizable output vector of tc.
+//      ulg updcrc(uch *s, unsigned n) - Run a set of bytes through the crc shift register.  If s is a NULL
+//                                       pointer, then initialize the crc shift register contents instead.
+//                                       Return the current crc in either case.
+//      void clear_bufs(thread_context* tc) - Clear input and output buffers
+//      int fill_inbuf(int eof_ok, thread_context* tc) - Fill the input buffer. This is called only when the buffer is empty.
+//      void flush_outbuf() - Write the output buffer outbuf[0..outcnt-1] and update bytes_out.
+//                            (used for the compressed data only)
+//      char *strlwr(char* s) - Put string s in lower case, return s.
+//      void* xmalloc(unsigned size) - Semi-safe malloc -- never returns NULL.
+//      ulg crc_32_tab[]; - CRC Tab
+
+// Defines Used
+//      INBUFSIZ - #define INBUFSIZ  0x8000
+//
+
+// Functions Used
+//      void memcpy_safe(vector* vec, void* memory, int number_of_elements); - See threads.c
+//      abort_gzip() - See gzip.c
 
 
-/* ========================================================================
- * Error handlers.
- */
 void error(char *m)
-{
-    fprintf(stderr, "\nError %s\n", m);
-    abort_gzip();
-}
+{ fprintf(stderr, "\nError %s\n", m); abort_gzip(); }
 
 void warn(char *a, char *b)
-{
-    //WARN((stderr, "%s: warning: %s%s\n", in_filepath, a, b));
-}
+{ fprintf(stderr, "warning: %s %s\n", a, b); }
 
 void read_error()
-{
-    //if (errno != 0) { perror(in_filepath); }
-    //else { fprintf(stderr, "%s: unexpected end of file\n", in_filepath); }
-    abort_gzip();
-}
+{ abort_gzip(); }
 
 void write_error()
-{
-    abort_gzip();
-}
+{ abort_gzip(); }
 
-/* ===========================================================================
- * Does the same as write(), but also handles partial pipe writes and checks
- * for error return.
- */
 void write_buf(void* buf, unsigned cnt, thread_context* tc)
-{
-    memcpy_safe(tc->output_vector, buf, cnt);
-}
+{ memcpy_safe(tc->output_vector, buf, cnt); }
 
-/* ===========================================================================
- * Run a set of bytes through the crc shift register.  If s is a NULL
- * pointer, then initialize the crc shift register contents instead.
- * Return the current crc in either case.
- */
 ulg updcrc(uch *s, unsigned n)
 {
-    register ulg c;         /* temporary variable */
+    ulg c;         /* temporary variable */
     static ulg crc = (ulg)0xffffffffL; /* shift register contents */
     if (s == NULL) c = 0xffffffffL;
     else
@@ -76,9 +75,6 @@ ulg updcrc(uch *s, unsigned n)
     return c ^ 0xffffffffL;       /* (instead of ~c for 64-bit machines) */
 }
 
-/* ===========================================================================
- * Clear input and output buffers
- */
 void clear_bufs(thread_context* tc)
 {
     tc->outcnt = 0;
@@ -86,20 +82,16 @@ void clear_bufs(thread_context* tc)
     tc->bytes_in = tc->bytes_out = 0L;
 }
 
-/* ===========================================================================
- * Fill the input buffer. This is called only when the buffer is empty.
- */
 int fill_inbuf(int eof_ok, thread_context* tc)
 {
     int len;
 
     /* Read as much as possible */
     tc->insize = 0;
-    errno = 0;
     do
     {
-        if(tc->full_input_buffer_remaining_bytes > INBUFSIZ - (tc->insize)) len = INBUFSIZ - tc->insize;
-        else len = tc->full_input_buffer_remaining_bytes;
+        if(tc->full_input_buffer_remaining_bytes > (unsigned long)(INBUFSIZ - (tc->insize))) len = INBUFSIZ - tc->insize;
+        else len = (unsigned int)tc->full_input_buffer_remaining_bytes;
          
 	    memcpy((char*)(tc->inbuf + tc->insize), tc->full_input_buffer + tc->full_input_buffer_bytes_read, len);
         tc->full_input_buffer_bytes_read += len;
@@ -114,11 +106,6 @@ int fill_inbuf(int eof_ok, thread_context* tc)
     tc->inptr = 1; return tc->inbuf[0];
 }
 
-
-/* ===========================================================================
- * Write the output buffer outbuf[0..outcnt-1] and update bytes_out.
- * (used for the compressed data only)
- */
 void flush_outbuf(thread_context* tc)
 {
     if (tc->outcnt == 0) return;
@@ -127,25 +114,6 @@ void flush_outbuf(thread_context* tc)
     tc->outcnt = 0;
 }
 
-
-
-/* ===========================================================================
- * Write the output window window[0..outcnt-1] and update crc and bytes_out.
- * (Used for the decompressed data only.)
- */
-void flush_window(thread_context* tc)
-{
-    if (tc->outcnt == 0) return;
-    updcrc(tc->window, tc->outcnt);
-    memcpy_safe(tc->output_vector, (char *)(tc->window), tc->outcnt);
-    tc->bytes_out += (ulg)(tc->outcnt);
-    tc->outcnt = 0;
-}
-
-
-/* ========================================================================
- * Put string s in lower case, return s.
- */
 char *strlwr(char* s)
 {
     char *t;
@@ -153,14 +121,9 @@ char *strlwr(char* s)
     return s;
 }
 
-
-/* ========================================================================
- * Semi-safe malloc -- never returns NULL.
- */
 void* xmalloc(unsigned size)
 {
     void* cp = (void*)malloc(size);
-
     if (cp == NULL) error("out of memory");
     return cp;
 }

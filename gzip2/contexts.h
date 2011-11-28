@@ -5,6 +5,29 @@
 #include <stdlib.h>
 #include "threads.h"
 
+// bits.c
+
+#define Buf_size (8 * 2*sizeof(char))
+/* Number of bits used within bi_buf. (bi_buf might be implemented on
+ * more than 16 bits on some systems.)
+ */
+ 
+ 
+ 
+ 
+// util.c
+
+#define INBUFSIZ  0x8000  /* input buffer size */
+#define OK      0
+#define ERROR   1
+#define WARNING 2
+
+extern unsigned long crc_32_tab[];   /* crc table, defined below */
+
+
+
+
+
 // Variables that Can be Made Global
 typedef unsigned char  uch;
 typedef unsigned short ush;
@@ -220,6 +243,8 @@ typedef unsigned IPos;
 
 typedef struct thread_context
 {
+    
+    unsigned long bits_sent;
 
 int attr;
 int method;

@@ -16,7 +16,6 @@ typedef struct vector
 
 vector* init_vector(unsigned int num_elements, unsigned int element_size);
 void memcpy_safe(vector* vec, void* memory, int number_of_elements);
-int write_vector_to_fd(vector* vec, int fd);
 void destroy_vector(vector* vec);
 
 

@@ -39,22 +39,6 @@ void memcpy_safe(vector* vec, void* memory, int number_of_elements)
     vec->occupied_elements += number_of_elements;
 }
 
-int write_vector_to_fd(vector* vec, int fd)
-{
-    unsigned int written_bytes = 0;
-    unsigned int total_bytes = vec->element_size * vec->total_elements; 
-    unsigned int remaining_bytes = total_bytes;
-
-    while(remaining_bytes != 0)
-    {
-        unsigned int n = write(fd, (char*) (vec->occupied_elements + written_bytes), remaining_bytes);
-	    if (n == (unsigned)-1) exit(-1);
-        remaining_bytes -= n; written_bytes += n;
-	}
-    
-    return written_bytes;
-}
-
 void destroy_vector(vector* vec)
 {
     free(vec->elements);
