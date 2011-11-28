@@ -5,130 +5,139 @@
 #include <stdlib.h>
 #include "threads.h"
 
-// bits.c
 
-#define Buf_size (8 * 2*sizeof(char))
-/* Number of bits used within bi_buf. (bi_buf might be implemented on
- * more than 16 bits on some systems.)
- */
- 
- 
- 
- 
-// util.c
+// Typedefs
 
-#define INBUFSIZ  0x8000  /* input buffer size */
-#define OK      0
-#define ERROR   1
-#define WARNING 2
-
-extern unsigned long crc_32_tab[];   /* crc table, defined below */
-
-
-
-
-
-// Variables that Can be Made Global
 typedef unsigned char  uch;
 typedef unsigned short ush;
 typedef unsigned long  ulg;
 
-// Required Defines
+typedef unsigned IPos;
+typedef ush Pos;
 
-#define EXTRA_FIELD 0x04
-#define CONTINUATION 0x02
-#define ORIG_NAME 0x08
-#define COMMENT 0x10
-#define RW_USER (S_IRUSR | S_IWUSR)
-#define O_BINARY        0
-#define	GZIP_MAGIC     "\037\213" /* Magic header for gzip files, 1F 8B */
+
+// Defines
+
+// gzip.c
+#define O_BINARY    0
+#define RW_USER     (S_IRUSR | S_IWUSR)  /* creation mode for open() */
+
+// zip.c
+#define GZIP_MAGIC  "\037\213"
 #define DEFLATED    8
-#define ORIG_NAME    0x08 /* bit 3 set: original file name present */
-#define OK      0
-#define OS_CODE 0
+#define ORIG_NAME   0x08 
+#define OS_CODE     0x00
+#define OK          0
+
+// deflate.c
+#define WSIZE       0x8000
+#define HASH_BITS   14
+#define HASH_SIZE   (unsigned)(1<<HASH_BITS)
+#define HASH_MASK   (HASH_SIZE-1)
+#define WMASK       (WSIZE-1)
+#define NIL         0
+#define FAST        4
+#define SLOW        2
+#define TOO_FAR     4096
+#define EQUAL       0
+#define MIN_LOOKAHEAD (MAX_MATCH+MIN_MATCH+1) 
+#define MIN_MATCH   3
+#define MAX_MATCH   258
+#define MAX_DIST    (WSIZE-MIN_LOOKAHEAD)
+#define FLUSH_BLOCK(eof) flush_block(tc->block_start >= 0L ? (char*)&(tc->window[(unsigned)(tc->block_start)]) : (char*)NULL, (long)(tc->strstart - tc->block_start), (eof), tc)
+#define Assert(cond,msg) {if(!(cond)) error(msg);}
+#define check_match(start, match, length, tc)
+#define INSERT_STRING(s, match_head) \
+   (UPDATE_HASH(tc->ins_h, tc->window[(s) + MIN_MATCH-1]), \
+    tc->prev[(s) & WMASK] = match_head = (tc->prev + WSIZE)[tc->ins_h], \
+    (tc->prev + WSIZE)[tc->ins_h] = (s))
+#define UPDATE_HASH(h,c) (h = (((h)<<H_SHIFT) ^ (c)) & HASH_MASK)
+#define LIT_BUFSIZE  0x8000
+#define DIST_BUFSIZE 0x8000 /* buffer for distances, see trees.c */
+#define H_SHIFT  ((HASH_BITS+MIN_MATCH-1)/MIN_MATCH)
 
 
-/* ===========================================================================
- * Constants
- */
-
+// trees.c
 #define MAX_BITS 15
-/* All codes must not exceed MAX_BITS bits */
-
 #define MAX_BL_BITS 7
-/* Bit length codes must not exceed MAX_BL_BITS bits */
-
 #define LENGTH_CODES 29
-/* number of length codes, not counting the special END_BLOCK code */
-
 #define LITERALS  256
-/* number of literal bytes 0..255 */
-
 #define END_BLOCK 256
-/* end of block literal code */
-
 #define L_CODES (LITERALS+1+LENGTH_CODES)
-/* number of Literal or Length codes, including the END_BLOCK code */
-
 #define D_CODES   30
-/* number of distance codes */
-
 #define BL_CODES  19
-/* number of codes used to transfer the bit lengths */
-
 #define STORED_BLOCK 0
 #define STATIC_TREES 1
 #define DYN_TREES    2
-/* The three kinds of block type */
-
-#define LIT_BUFSIZE  0x8000
-
-/* Sizes of match buffers for literals/lengths and distances.  There are
- * 4 reasons for limiting LIT_BUFSIZE to 64K:
- *   - frequencies can be kept in 16 bit counters
- *   - if compression is not successful for the first block, all input data is
- *     still in the window so we can still emit a stored block even when input
- *     comes from standard input.  (This can also be done for all blocks if
- *     LIT_BUFSIZE is not greater than 32K.)
- *   - if compression is not successful for a file smaller than 64K, we can
- *     even emit a stored file instead of a stored block (saving 5 bytes).
- *   - creating new Huffman trees less frequently may not provide fast
- *     adaptation to changes in the input data statistics. (Take for
- *     example a binary file with poorly compressible code followed by
- *     a highly compressible string table.) Smaller buffer sizes give
- *     fast adaptation but have of course the overhead of transmitting trees
- *     more frequently.
- *   - I can't count above 4
- * The current code is general and allows DIST_BUFSIZE < LIT_BUFSIZE (to save
- * memory at the expense of compression). Some optimizations would be possible
- * if we rely on DIST_BUFSIZE == LIT_BUFSIZE.
- */
-
 #define REP_3_6      16
-/* repeat previous bit length 3-6 times (2 bits of repeat count) */
-
 #define REPZ_3_10    17
-/* repeat a zero length 3-10 times  (3 bits of repeat count) */
-
 #define REPZ_11_138  18
-/* repeat a zero length 11-138 times  (7 bits of repeat count) */
-
-/* ===========================================================================
- * Local data
- */
-
-
+#define SMALLEST 1
+#define l_buf inbuf
 #define Freq fc.freq
 #define Code fc.code
 #define Dad  dl.dad
 #define Len  dl.len
-
 #define HEAP_SIZE (2*L_CODES+1)
-/* maximum heap size */
+#define send_code(c, tree) send_bits(tree[c].Code, tree[c].Len, tc)
+#define d_code(dist) ((dist) < 256 ? tc->dist_code[dist] : tc->dist_code[256+((dist)>>7)])
+#define MAX(a,b) (a >= b ? a : b)
+#define pqremove(tree, top) \
+                 { top = tc->heap[SMALLEST]; \
+                  tc->heap[SMALLEST] = tc->heap[tc->heap_len--]; \
+                  pqdownheap(tree, SMALLEST, tc); }
+#define smaller(tree, n, m) \
+               (tree[n].Freq < tree[m].Freq || \
+               (tree[n].Freq == tree[m].Freq && tc->depth[n] <= tc->depth[m]))
+#define L_CODES (LITERALS+1+LENGTH_CODES)
+#define UNKNOWN 0xffff
+#define BINARY 0
+#define ASCII 1
+
+#define STORED 0
+#define COMPRESSED 1
 
 
-#define l_buf inbuf
+// util.c
+#define INBUFSIZ  0x8000
 
+
+// bits.c
+#define put_short(w) \
+        { if (tc->outcnt < OUTBUFSIZ-2) { \
+          tc->outbuf[tc->outcnt++] = (uch) ((w) & 0xff); \
+          tc->outbuf[tc->outcnt++] = (uch) ((ush)(w) >> 8); \
+        } else { \
+          put_byte((uch)((w) & 0xff)); \
+          put_byte((uch)((ush)(w) >> 8)); \
+        } }
+#define put_byte(c) {tc->outbuf[tc->outcnt++]=(uch)(c); if (tc->outcnt==OUTBUFSIZ) flush_outbuf(tc);}
+#define Buf_size (8 * 2*sizeof(char))
+#define OUTBUFSIZ  16384
+
+// Corrections
+#define Trace(x) {if(verbose) fprintf x ;}  
+#define Tracev(x) {if (verbose) fprintf x ;}
+#define Tracevv(x) {if (verbose) fprintf x; }
+#define verbose 0
+#define seekable() 0
+
+
+
+
+
+
+
+
+
+// Structures
+
+ typedef struct config {
+    ush good_length; /* reduce lazy search above this match length */
+    ush max_lazy;    /* do not perform lazy search above this match length */
+    ush nice_length; /* quit search above this match length */
+    ush max_chain;
+ } config;
 
 /* Data structure describing a single value and its code string. */
 typedef struct ct_data {
@@ -152,14 +161,10 @@ typedef struct tree_desc {
     int     max_code;            /* largest code with non zero frequency */
 } tree_desc;
 
-
-
-
-
 typedef struct global_context
 {
 
-    int level;
+    int level;                              /* Compression Level */
 
     int  ifd;                               /* input file descriptor */
     int  ofd;                               /* output file descriptor */
@@ -213,209 +218,125 @@ typedef struct quick_data
 } quick_data;
 
 
-
-
-
-
-#define MIN_MATCH 3
-#define MAX_MATCH 258
-
-#define STORED 0
-#define COMPRESSED 1
-
-
-#define WSIZE 0x8000     /* window size--must be a power of two, and */
-#define MIN_LOOKAHEAD (MAX_MATCH+MIN_MATCH+1)
-#define MAX_DIST  (WSIZE-MIN_LOOKAHEAD)
-
-#define UNKNOWN 0xffff
-#define BINARY 0
-#define ASCII 1
-
-#define DIST_BUFSIZE 0x8000 /* buffer for distances, see trees.c */
-#define H_SHIFT  ((HASH_BITS+MIN_MATCH-1)/MIN_MATCH)
-
-# define tab_prefix prev /* hash link (see deflate.c) */
-//# define head (prev+WSIZE) /* hash head (see deflate.c) */
-
-typedef ush Pos;
-typedef unsigned IPos;
-
 typedef struct thread_context
 {
-    
-    unsigned long bits_sent;
-
-int attr;
-int method;
-ush deflate_flags;
-
-char* full_output_buffer;
-unsigned int full_output_block_length;
-unsigned int block_number;
-unsigned int full_input_buffer_size;
-
-int last_block;
-
-ush bl_count[MAX_BITS+1];
-
-
-/* length code for each normalized match length (0 == MIN_MATCH) */
-
-
-Pos prev[WSIZE];
-
-
-    tree_desc l_desc;// = {dyn_ltree, static_ltree, extra_lbits, LITERALS+1, L_CODES, MAX_BITS, 0};
-
-    tree_desc d_desc;// = {dyn_dtree, static_dtree, extra_dbits, 0, D_CODES, MAX_BITS, 0};
-
-    tree_desc bl_desc;// = {bl_tree, (ct_data near *)0, extra_blbits, 0, BL_CODES, MAX_BL_BITS, 0};
-
-    int compr_level;
-    unsigned insize; /* valid bytes in inbuf */
-    unsigned inptr;  /* index of next byte to be processed in inbuf */
-    unsigned outcnt; /* bytes in output buffer */
-    unsigned short bi_buf;
-    unsigned int bi_valid;
-    long block_start;
-    unsigned ins_h;
-
-    char* full_input_buffer;
-    unsigned int full_input_buffer_bytes_read;
+    // zip.c
     unsigned int full_input_buffer_remaining_bytes;
-
-    vector* output_vector;
-    unsigned int bytes_in;
-    unsigned int bytes_out; 
-
-    uch* inbuf;     /* input buffer */
-    uch* outbuf;    /* output buffer */
-    ush* d_buf;     /* buffer for distances, see trees.c */
-    uch* window;    /* Sliding window and suffix table (unlzw) */
-
-    unsigned int prev_length;
+    unsigned int full_input_buffer_bytes_read;
+    
+    // deflate.c
+    int attr;
+    int method;
+    ush deflate_flags;
+    char* full_input_buffer;
+    unsigned int full_input_buffer_size;
+    char* full_output_buffer;
+    unsigned int full_output_buffer_length;
+    unsigned int block_number;
+    int last_block;
+    unsigned      lookahead;
     unsigned strstart;          /* window offset of current string */
+    unsigned int prev_length;
     unsigned match_start;       /* window offset of current string */
-    int           eofile;        /* flag set at end of input file */
-    unsigned      lookahead;     /* number of valid bytes ahead in window */
-
-    unsigned max_chain_length;
     unsigned int max_lazy_match;
+    uch* window;    /* Sliding window and suffix table (unlzw) */
+    long block_start;
+    int           eofile;        /* flag set at end of input file */
     unsigned good_match;
+    ulg window_size;
     int nice_match;
-
+    ush prev[WSIZE];
+    unsigned max_chain_length;
+    int compr_level;
+    unsigned ins_h;
+    
+    // trees.c
     int* file_type;
     int* file_method;
-
-    int compressed_len;
-    int input_len;
-
+    unsigned int compressed_len;
+    unsigned int input_len;
+    ct_data static_ltree[L_CODES + 2];
+    ct_data static_dtree[D_CODES];
+    int base_length[LENGTH_CODES];
+    uch length_code[MAX_MATCH-MIN_MATCH+1];
+    int base_dist[D_CODES];
+    uch dist_code[512];
+    ush bl_count[MAX_BITS+1];
     ct_data dyn_ltree[HEAP_SIZE];   /* literal and length tree */
     ct_data dyn_dtree[2*D_CODES+1]; /* distance tree */
-
-    ct_data static_ltree[L_CODES+2];
-    /* The static literal tree. Since the bit lengths are imposed, there is no
-     * need for the L_CODES extra codes used during heap construction. However
-     * The codes 286 and 287 are needed to build a canonical tree (see ct_init
-     * below).
-     */
-
-    ct_data static_dtree[D_CODES];
-    /* The static distance tree. (Actually a trivial tree since all codes use
-     * 5 bits.)
-     */
-
     ct_data bl_tree[2*BL_CODES+1];
-    /* Huffman tree for the bit lengths */
-
-//    tree_desc l_desc = {dyn_ltree, static_ltree, extra_lbits, LITERALS+1, L_CODES, MAX_BITS, 0};
-//    tree_desc d_desc = {dyn_dtree, static_dtree, extra_dbits, 0, D_CODES, MAX_BITS, 0};
-//    tree_desc bl_desc = {bl_tree, (ct_data near *)0, extra_blbits, 0, BL_CODES, MAX_BL_BITS, 0};
-
-    /* number of codes at each bit length for an optimal tree */
-
-//    uch bl_order[BL_CODES]    = {16,17,18,0,8,7,9,6,10,5,11,4,12,3,13,2,14,1,15};
-    /* The lengths of the bit length codes are sent in order of decreasing
-     * probability, to avoid transmitting the lengths for unused bit length codes.
-     */
-
-uch length_code[MAX_MATCH-MIN_MATCH+1];
-
-    int heap[2*L_CODES+1]; /* heap used to build the Huffman trees */
-    int heap_len;               /* number of elements in the heap */
-    int heap_max;               /* element of largest frequency */
-    /* The sons of heap[n] are heap[2*n] and heap[2*n+1]. heap[0] is not used.
-     * The same heap array is used to build all trees.
-     */
-
-    uch depth[2*L_CODES+1];
-    /* Depth of each subtree used as tie breaker for trees of equal frequency */
-
-//    uch length_code[MAX_MATCH-MIN_MATCH+1];
-    /* length code for each normalized match length (0 == MIN_MATCH) */
-
-ulg window_size;//= (ulg)2*WSIZE;
-/* window size, 2*WSIZE except for MMAP or BIG_MEM, where it is the
- * input file length plus MIN_LOOKAHEAD.
- */
-
-    uch dist_code[512];
-    /* distance codes. The first 256 values correspond to the distances
-     * 3 .. 258, the last 256 values correspond to the top 8 bits of
-     * the 15 bit distances.
-     */
-
-    int base_length[LENGTH_CODES];
-    /* First normalized length for each code (0 = MIN_MATCH) */
-
-    int base_dist[D_CODES];
-    /* First normalized distance for each code (0 = distance of 1) */
-
-    uch flag_buf[(LIT_BUFSIZE/8)];
-    /* flag_buf is a bit array distinguishing literals from lengths in
-     * l_buf, thus indicating the presence or absence of a distance.
-     */
-
+    ulg opt_len;        /* bit length of current block with optimal trees */
+    ulg static_len;     /* bit length of current block with static trees */
     unsigned last_lit;    /* running index in l_buf */
     unsigned last_dist;   /* running index in d_buf */
     unsigned last_flags;  /* running index in flag_buf */
     uch flags;            /* current flags not yet saved in flag_buf */
     uch flag_bit;         /* current bit used in flags */
-    /* bits are filled in flags starting at bit 0 (least significant).
-     * Note: these flags are overkill in the current code since we don't
-     * take advantage of DIST_BUFSIZE == LIT_BUFSIZE.
-     */
-
-    ulg opt_len;        /* bit length of current block with optimal trees */
-    ulg static_len;     /* bit length of current block with static trees */
-
+    uch flag_buf[(LIT_BUFSIZE/8)];
+    int heap_len;               /* number of elements in the heap */
+    int heap[2*L_CODES+1]; /* heap used to build the Huffman trees */
+    int heap_max;               /* element of largest frequency */
+    tree_desc l_desc;// = {dyn_ltree, static_ltree, extra_lbits, LITERALS+1, L_CODES, MAX_BITS, 0};
+    tree_desc d_desc;
+    tree_desc bl_desc;
+    uch* inbuf;     /* input buffer */
+    ush* d_buf;     /* buffer for distances, see trees.c */
+    uch depth[2*L_CODES+1];
+    
+    // util.c
+    unsigned outcnt;
+    unsigned insize;
+    unsigned inptr;
+    long bytes_in;
+    long bytes_out;
+    vector* output_vector;
+    
+    // bits.c
+    unsigned short bi_buf;
+    int bi_valid;
+    unsigned long bits_sent;
+    unsigned char* outbuf;
+        
 } thread_context;
 
-// Extern Declarations
-// gzip.c
 
+
+
+
+
+
+
+
+
+
+
+// External Functions and Vars
+
+
+// gzip.c
 extern int create_outfile(global_context* gc);
 extern void treatfile(global_context* gc);
 extern int abort_gzip();
+extern int main(int argc, char **argv);
 
 // zip.c
-
 extern int zip(global_context* gc);
+extern int thread_read_buf(char *buf, unsigned long size, thread_context* tc); 
 extern int file_read(char *buf, unsigned long size, global_context* gc);
-extern int thread_read_buf(char *buf, unsigned long size, thread_context* tc);
 
 // deflate.c
-
 extern void lm_init (int pack_level, ush* flags, thread_context* tc);
-extern int longest_match(unsigned cur_match, thread_context* tc);
-extern void check_match(unsigned start, IPos match, int length, thread_context* tc);
 extern void fill_window(thread_context* tc);
-extern unsigned long deflate(global_context* gc);
-extern void* deflate_work(void* tc);
+extern int longest_match(IPos cur_match, thread_context* tc);
+extern void* deflate_work(void* arg);
+extern void thread_context_init(global_context* gc, thread_context* tc);
+extern thread_context* grab_another_block(global_context* gc, thread_context* tc);
+extern void* io_out_function(void* arg);
+extern ulg deflate(global_context* gc);
+extern config configuration_table[10];
 
 // trees.c
-
+extern void ct_init(int* attr, int* methodp, thread_context* tc);
 extern void init_block     (thread_context* tc);
 extern void pqdownheap     (ct_data *tree, int k, thread_context* tc);
 extern void gen_bitlen     (tree_desc *desc, thread_context* tc);
@@ -427,70 +348,34 @@ extern int  build_bl_tree  (thread_context* tc);
 extern void send_all_trees (int lcodes, int dcodes, int blcodes, thread_context* tc);
 extern void compress_block (ct_data *ltree, ct_data *dtree, thread_context* tc);
 extern void set_file_type  (thread_context* tc);
+extern ulg flush_block(char* buf, ulg stored_len, int eof, thread_context* tc);
+extern int ct_tally (int dist, int lc, thread_context* tc);
 
-// bits.c
-
-#define put_byte(c) {tc->outbuf[tc->outcnt++]=(uch)(c); if (tc->outcnt==OUTBUFSIZ)\
-   flush_outbuf(tc);}
-#define put_ubyte(c) {tc->window[tc->outcnt++]=(uch)(tc->c); if (tc->outcnt==WSIZE)\
-   flush_window(tc);}
-
-/* Output a 16 bit value, lsb first */
-#define put_short(w) \
-{ if (tc->outcnt < OUTBUFSIZ-2) { \
-    tc->outbuf[tc->outcnt++] = (uch) ((w) & 0xff); \
-    tc->outbuf[tc->outcnt++] = (uch) ((ush)(w) >> 8); \
-  } else { \
-    put_byte((uch)((w) & 0xff)); \
-    put_byte((uch)((ush)(w) >> 8)); \
-  } \
-}
-
-/* Output a 32 bit value to the bit stream, lsb first */
-#define put_long(n) { \
-    put_short((n) & 0xffff); \
-    put_short(((ulg)(n)) >> 16); \
-}
-
-#define get_char() get_byte()
-#define put_char(c) put_byte(c)
-
-#define NO_FILE  (-1)   /* in memory compression */
-#define OUTBUFSIZ  16384  /* output buffer size */
-
-#define verbose 0
-#define seekable() 0
-#define Trace(x) {if(verbose) fprintf x ;}  
-#define Tracev(x) {if (verbose) fprintf x ;}
-#define Tracevv(x) {if (verbose) fprintf x; }
-#define Assert(cond,msg) {if(!(cond)) error(msg);}
-
-void bi_init(thread_context* tc);
-void send_bits(int value, int length, thread_context* tc);
-unsigned bi_reverse(unsigned code, int len);
-void bi_windup(thread_context* tc);
-void copy_block(char* buf, unsigned len, int header, thread_context* tc);
-
+extern int extra_lbits[LENGTH_CODES];
+extern int extra_dbits[D_CODES];
+extern int extra_blbits[BL_CODES];
+extern uch bl_order[BL_CODES];
 
 // util.c
+extern void error(char *m);
+extern void warn(char* a, char *b);
+extern void read_error();
+extern void write_error();
+extern void write_buf(void* buf, unsigned cnt, thread_context* tc);
+extern ulg updcrc(uch *s, unsigned n);
+extern void clear_bufs(thread_context* tc);
+extern int fill_inbuf(int eof_ok, thread_context* tc);
+extern void flush_outbuf();
+extern char *strlwr(char* s);
+extern void* xmalloc(unsigned size);
+extern ulg crc_32_tab[];
 
-
-void error(char *m);
-void warn(char *a, char *b);
-void read_error();
-void write_error();
-void write_buf(void* buf, unsigned cnt, thread_context* tc);
-ulg updcrc(uch *s, unsigned n);
-void clear_bufs(thread_context* tc);
-int fill_inbuf(int eof_ok, thread_context* tc);
-void flush_outbuf(thread_context* tc);
-void flush_window(thread_context* tc);
-char *strlwr(char* s);
-void* xmalloc(unsigned size);
-
-
-
-
+// bits.c
+extern void bi_init(thread_context* tc);
+extern void send_bits(int value, int length, thread_context* tc);
+extern unsigned bi_reverse(unsigned code, int len);
+extern void bi_windup(thread_context* tc);
+extern void copy_block(char* buf, unsigned len, int header, thread_context* tc);
 
 
 #endif

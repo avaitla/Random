@@ -13,6 +13,7 @@
 //      unsigned long long int bytes_in - Total number of bytes currently read in from file
 //      _threadpool* pool - pool of worker threads
 //      unsigned int number_of_threads - number of threads we want to use
+//      unsigned long block_chunk_size - the size to chunk the input file by for each thread 
 //      queue* thread_return_queue - queue where threads push back completed zipped blocks
 //      queue* output_queue - queue for main io thread to push to output fd
 //      sorted_linked_list* processed_blocks - blocks returned by threads which may not be sent to ofd since they may arrive out of order
@@ -43,11 +44,11 @@
 //                                      IN assertion: size >= 2 (for end-of-line translation)
 
 // Defines Used
-//      GZIP_MAGIC - #define	GZIP_MAGIC     "\037\213"
-//      DEFLATED - #define DEFLATED    8
-//      ORIG_NAME - #define ORIG_NAME    0x08 
-//      OS_CODE - #define OS_CODE  0x00
-//      OK - #define OK      0
+//      GZIP_MAGIC - #define GZIP_MAGIC "\037\213"
+//      DEFLATED - #define DEFLATED   8
+//      ORIG_NAME - #define ORIG_NAME 0x08 
+//      OS_CODE - #define OS_CODE     0x00
+//      OK - #define OK               0
 //
 
 // Functions Used
@@ -59,6 +60,9 @@
 
 int zip(global_context* gc)
 {
+    gc->number_of_threads = 6;
+    gc->block_chunk_size = 21000000;
+    
     char *p = (char*) basename(gc->in_filepath);
     long length = strlen(p);
     long header_length = 4 + 4 + 1 + 1 + length + 1 + 4 + 4;
@@ -123,6 +127,7 @@ int thread_read_buf(char *buf, unsigned long size, thread_context* tc)
     tc->full_input_buffer_bytes_read += (unsigned long long int)size;
     return (int)size;
 }
+
 
 int file_read(char *buf, unsigned long size, global_context* gc)
 {

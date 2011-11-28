@@ -24,6 +24,7 @@
 
 
 // Functions Defined
+//      void error(char *m), void warn(char* a, char *b), void read_error(), void write_error() - Mostly so stuff doesn't break
 //      void write_buf(void* buf, unsigned cnt, thread_context* tc) - writes buf with length cnt directly into the
 //                                                                    resizable output vector of tc.
 //      ulg updcrc(uch *s, unsigned n) - Run a set of bytes through the crc shift register.  If s is a NULL

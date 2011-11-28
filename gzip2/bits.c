@@ -5,8 +5,8 @@
 //      unsigned short bi_buf - Output buffer. bits are inserted starting at the bottom (least significant bits).
 //      int bi_valid - Number of valid bits in bi_buf.  All bits above the last valid bit are always zero.
 //      unsigned long bits_sent - bit length of the compressed data
+//      unsigned char[] outbuf - Buffer for flushing out all of our data
 //
-//      unsigned char[] outbuf - See deflate.c
 //      unsigned outcnt        - See deflate.c
 
 // Functions Defined

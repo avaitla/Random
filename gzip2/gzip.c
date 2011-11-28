@@ -21,7 +21,6 @@
 // Functions Defined
 //      int create_outfile(global_context* gc) - Create the Output File
 //      void treatfile(global_context* gc) - Get Stats on the Input File
-//      global_context* init_global_context(unsigned long block_chunk_size, unsigned int number_of_threads) - Init
 //      int abort_gzip() - Just kill the entire program right then and there
 //      int main(int argc, char **argv) - Entry Point
 
