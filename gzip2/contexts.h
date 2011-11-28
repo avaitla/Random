@@ -395,7 +395,6 @@ ulg window_size;//= (ulg)2*WSIZE;
 // Extern Declarations
 // gzip.c
 
-extern global_context* init_global_context(unsigned long block_chunk_size, unsigned int number_of_threads);
 extern int create_outfile(global_context* gc);
 extern void treatfile(global_context* gc);
 extern int abort_gzip();

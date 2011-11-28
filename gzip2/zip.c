@@ -8,6 +8,55 @@
 #include <stdio.h>
 #include "contexts.h"
 
+// Global Context Variables Directly Used / Managed
+//      unsigned long crc - current crc checksum for the bytes read in
+//      unsigned long long int bytes_in - Total number of bytes currently read in from file
+//      _threadpool* pool - pool of worker threads
+//      unsigned int number_of_threads - number of threads we want to use
+//      queue* thread_return_queue - queue where threads push back completed zipped blocks
+//      queue* output_queue - queue for main io thread to push to output fd
+//      sorted_linked_list* processed_blocks - blocks returned by threads which may not be sent to ofd since they may arrive out of order
+//      pthread_mutex_t output_block_lock - lock for threads to add their output buffers back to processed_blocks
+//      pthread_mutex_t output_fd_lock - lock to push data from this io thread to the output io thread
+//      pthread_cond_t take_io_action - This condition variable will be signaled whenever a thread adds to the processed_blocks list
+//      pthread_cond_t more_io_output - This condition variable will be signaled whenever we place more output to be sent to ofd
+//      unsigned long header_bytes - number of bytes in gzip header
+//      unsigned int bytes_out - total number of bytes sent out to ofd
+//
+//      int ifd - See gzip.c
+//      int ofd - See gzip.c
+//      char* in_filepath - See gzip.c
+//      struct stat istat - See gzip.c
+
+// Thread Context Variables Directly Used / Managed
+//      unsigned int full_input_buffer_remaining_bytes   - See deflate.c
+//      char* full_input_buffer                          - See deflate.c
+//      unsigned int full_input_buffer_bytes_read        - See deflate.c
+
+// Functions Defined
+//      int zip(global_context* gc) - Function that does the heavy lifting
+//      int thread_read_buf(char *buf, unsigned long size, thread_context* tc) - Read a new buffer from 
+//                                                                               the threads store buffer
+//      int file_read(char *buf, unsigned long size, global_context* gc) - Read a new buffer from 
+//                                      the current input file, perform end-of-line translation, 
+//                                      and update the crc and input file size.
+//                                      IN assertion: size >= 2 (for end-of-line translation)
+
+// Defines Used
+//      GZIP_MAGIC - #define	GZIP_MAGIC     "\037\213"
+//      DEFLATED - #define DEFLATED    8
+//      ORIG_NAME - #define ORIG_NAME    0x08 
+//      OS_CODE - #define OS_CODE  0x00
+//      OK - #define OK      0
+//
+
+// Functions Used
+//      ulg updcrc(uch* s, unsigned n) - See util.c
+//      sorted_linked_list* init_sorted_linked_list() - See threads.c
+//      queue* initialize_queue() - See threads.c
+//      threadpool* create_threadpool(unsigned int num_threads_in_pool) - See threads.c
+//      ulg deflate(global_context* gc) - See deflate.c
+
 int zip(global_context* gc)
 {
     char *p = (char*) basename(gc->in_filepath);
@@ -27,7 +76,7 @@ int zip(global_context* gc)
     headerbuffer[7] = (char)(time_stamp >> 24);
 
     /* Write deflated file to zip file */
-    gc->crc = updcrc(0, 0);
+    gc->crc = updcrc(0, 0); gc->bytes_in = 0LL;
     gc->pool = create_threadpool(gc->number_of_threads);
     gc->thread_return_queue = initialize_queue();
     gc->output_queue = initialize_queue();
@@ -36,11 +85,6 @@ int zip(global_context* gc)
     pthread_mutex_init(&(gc->output_fd_lock), NULL);
     pthread_cond_init(&(gc->take_io_action), NULL);
     pthread_cond_init(&(gc->more_io_output), NULL);
-
-
-
-
-
 
     headerbuffer[8] = 0;
     headerbuffer[9] = OS_CODE;
@@ -68,12 +112,6 @@ int zip(global_context* gc)
     write(gc->ofd, headerbuffer + i, 8);
     return OK;
 }
-
-/* ===========================================================================
- * Read a new buffer from the current input file, perform end-of-line
- * translation, and update the crc and input file size.
- * IN assertion: size >= 2 (for end-of-line translation)
- */
 
 int thread_read_buf(char *buf, unsigned long size, thread_context* tc)
 {

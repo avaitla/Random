@@ -6,7 +6,32 @@
 #include <fcntl.h>
 #include "contexts.h"
 
+// Global Context Variables Directly Used / Managed
+//      int  ofd - output file descriptor
+//      char* out_filepath - full path of output file
+//      char* in_filepath - full path of input file
+//      struct stat istat - status for input file
+//      int compr_level - compression level we are using 
+//      unsigned long long int ifile_size - Complete input file size in bytes
+//      unsigned long long int bytes_to_read - total number of bytes available to be read (effectively (ifile_size - bytes_in))
+//      int  ifd - input file descriptor
+//      unsigned int decompress - 1 if we are decompressing, 0 if compressing
+//      int (*work) (struct global_context*) - function to do the zipping or unzipping
 
+// Functions Defined
+//      int create_outfile(global_context* gc) - Create the Output File
+//      void treatfile(global_context* gc) - Get Stats on the Input File
+//      global_context* init_global_context(unsigned long block_chunk_size, unsigned int number_of_threads) - Init
+//      int abort_gzip() - Just kill the entire program right then and there
+//      int main(int argc, char **argv) - Entry Point
+
+// Defines Used
+//      O_BINARY - #define O_BINARY        0
+//      RW_USER - #define RW_USER (S_IRUSR | S_IWUSR)  /* creation mode for open() */
+
+
+// Functions Used
+//      int zip(global_context* gc) - See zip.c
 
 int create_outfile(global_context* gc)
 {
@@ -42,27 +67,11 @@ void treatfile(global_context* gc)
     close(gc->ofd);
 }
 
-
-
-global_context* init_global_context(unsigned long block_chunk_size, unsigned int number_of_threads)
-{
-    global_context* gc = (global_context*) malloc(sizeof(global_context));
-    gc->ifd = 0; gc->ofd = 0; gc->in_filepath = NULL; gc->out_filepath = NULL;
-    gc->decompress = 0; gc->ifile_size = 0LL; gc->bytes_in = 0LL; gc->bytes_out = 0LL;
-    gc->header_bytes = 0; gc->block_chunk_size = block_chunk_size; 
-    gc->number_of_threads = number_of_threads; gc->pool = NULL;
-    gc->blocks_read = 0; gc->processed_blocks = NULL;
-    gc->compr_level = 6; gc->crc = 0; gc->work = NULL;
-    pthread_mutex_init(&(gc->output_block_lock), NULL);
-    pthread_cond_init(&(gc->take_io_action), NULL);
-    gc->block_number = 1; return gc;
-}
-
 int main(int argc, char **argv)
 {
     if(argc < 2) { printf("First Argument must be the Filename"); return -1; }
  
-    global_context* gc = init_global_context(210000000, 6);
+    global_context* gc = (global_context*) malloc(sizeof(global_context));
     if(argc == 3)
     { if(strcmp(argv[2], "decompress") == 0) { gc->decompress = 1; }
       else { printf("Illegal Second Argument, Must be decompress\n"); free(gc); return -1; }
@@ -73,10 +82,11 @@ int main(int argc, char **argv)
     if((char*)getcwd(cwd, sizeof(cwd)) == NULL)
     { printf("Illegal CWD Result\n"); free(gc); return -1; }
 
+    // malloc'ing like a bossssss since '91
     char* in_filepath = (char*)malloc(strlen(cwd) + 1 + strlen(argv[1]) + 1);
     memcpy(in_filepath, cwd, (int)strlen(cwd)); in_filepath[strlen(cwd)] = '/';
     strcpy(in_filepath + strlen(cwd) + 1, argv[1]);
-    gc->in_filepath = in_filepath;
+    gc->in_filepath = in_filepath; gc->level = 6;
 
     gc->work = zip;
     char* out_filepath = (char*)malloc(strlen(in_filepath) + 3);
