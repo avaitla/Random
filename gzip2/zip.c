@@ -30,9 +30,9 @@
 //      struct stat istat - See gzip.c
 
 // Thread Context Variables Directly Used / Managed
-//      unsigned int full_input_buffer_remaining_bytes   - See deflate.c
-//      char* full_input_buffer                          - See deflate.c
-//      unsigned int full_input_buffer_bytes_read        - See deflate.c
+//      unsigned int full_input_buffer_remaining_bytes   - Number of bytes that are still available from the handle
+//      unsigned int full_input_buffer_bytes_read        - Number of bytes read from the pseudo handle
+//	char* full_input_buffer				 - See deflate.c
 
 // Functions Defined
 //      int zip(global_context* gc) - Function that does the heavy lifting
