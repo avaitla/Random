@@ -129,19 +129,28 @@ thread_context* new_thread_context(global_context* gc)
 	thread_context* tc = (thread_context*) malloc(sizeof(thread_context));
 	tc->full_input_buffer = (char*) malloc(gc->block_chunk_size);
 	tc->full_output_vector = init_vector(gc->block_chunk_size, sizeof(char));
+	tc->full_output_buffer_length = 0;
+	tc->window = (uch*) malloc(2L * WSIZE); tc->window_size = (ulg)2*WSIZE;
+	tc->eofile = 0; tc->compressed_len = 0; tc->d_buf = (ush*) malloc(DIST_BUFSIZE * sizeof(ush));
+	tc->outbuf = (uch*) malloc(OUTBUFSIZ + OUTBUF_EXTRA);
+	tc->inbuf = (uch*) malloc(INBUFSIZ + INBUF_EXTRA);
+	thread_context_init(gc, tc);
 	return tc;
 }
 
-thread_context* clean_old_thread_context(thread_context* tc)
+thread_context* clean_old_thread_context(global_context* gc, thread_context* tc)
 {
-	
+	tc->full_output_buffer_length = 0;
+	tc->window = (uch*) malloc(2L * WSIZE);
+	tc->eofile = 0; tc->compressed_len = 0;
+	thread_context_init(gc, tc);
 	return tc;
 }
 
 thread_context* grab_another_block(global_context* gc, thread_context* tc)
 {
     if(tc == NULL) tc = new_thread_context(gc);
-    else tc = clean_old_thread_context(tc);
+    else tc = clean_old_thread_context(gc, tc);
 
     if(gc->bytes_to_read == 0 || gc->bytes_to_read <= gc->block_chunk_size)
         gc->last_block_number = gc->block_number;
@@ -167,6 +176,9 @@ thread_context* grab_another_block(global_context* gc, thread_context* tc)
         gc->bytes_in += gc->bytes_to_read;
         gc->bytes_to_read = 0; 
     }
+	
+	tc->full_input_buffer_bytes_read = 0;
+	tc->full_input_buffer_remaining_bytes = tc->full_input_buffer_size;
 
     return tc;
 }

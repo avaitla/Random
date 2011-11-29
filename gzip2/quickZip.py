@@ -36,5 +36,5 @@ out_filename = "a.test"
 chunk_size = 30
 
 create_random_file(in_filename, 500) 
-compress_file(in_filename, chunk_size)
-decompress_file(out_filename)
+#compress_file(in_filename, chunk_size)
+#decompress_file(out_filename)

@@ -21,6 +21,9 @@ typedef ush Pos;
 // gzip.c
 #define O_BINARY    0
 #define RW_USER     (S_IRUSR | S_IWUSR)  /* creation mode for open() */
+#define INBUF_EXTRA  64     /* required by unlzw() */
+#define OUTBUF_EXTRA 2048   /* required by unlzw() */
+
 
 // zip.c
 #define GZIP_MAGIC  "\037\213"
@@ -275,7 +278,7 @@ typedef struct thread_context
     unsigned int full_output_buffer_length;
     unsigned int block_number;
     int last_block;
-    unsigned      lookahead;
+    unsigned lookahead;
     unsigned strstart;          /* window offset of current string */
     unsigned int prev_length;
     unsigned match_start;       /* window offset of current string */
@@ -375,7 +378,7 @@ extern void* io_out_function(void* arg);
 extern ulg deflate(global_context* gc);
 extern config configuration_table[10];
 thread_context* new_thread_context(global_context* gc);
-thread_context* clean_old_thread_context(thread_context* tc);
+thread_context* clean_old_thread_context(global_context* gc, thread_context* tc);
 
 // trees.c
 extern void ct_init(int* attr, int* methodp, thread_context* tc);
