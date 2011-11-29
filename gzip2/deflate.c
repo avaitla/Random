@@ -231,6 +231,7 @@ ulg deflate(global_context* gc)
     pthread_t io_out_thread;
     pthread_create(&io_out_thread, NULL, io_out_function, (void*)gc);
     int i; int first_pass = 0; int quit_flag = 0;
+    
     for(i = 0; i != gc->number_of_threads; i++)
     {
 		if(gc->bytes_to_read > 0)
@@ -247,17 +248,37 @@ ulg deflate(global_context* gc)
     queue* temp = initialize_queue();
     while(1)
     {
-        pthread_mutex_lock(&(gc->output_block_lock));                  
-        while(!queue_empty(gc->thread_return_queue))
-            enqueue(temp,dequeue(gc->thread_return_queue));
-        pthread_mutex_unlock(&(gc->output_block_lock));
-
-        if(!queue_empty(temp))
+        printf("Entered While Loop\n");
+        pthread_mutex_lock(&(gc->pool->pending_job_requests_lock));
+        while(queue_empty(gc->pool->pending_job_requests) && queue_empty(gc->pool->completed_threads))
+            pthread_cond_wait(&(gc->pool->pending_job_requests_cond), &(gc->pool->pending_job_requests_lock));
+            
+        printf("Got Lock!\n");
+        while(!queue_empty(gc->pool->pending_job_requests) && !queue_empty(gc->pool->free_threads))
         {
-            pthread_mutex_lock(&(gc->output_fd_lock));            
-            while(!queue_empty(temp))
+            spec_thread* th = dequeue(gc->pool->free_threads);
+            work_t* work = dequeue(gc->pool->pending_job_requests);
+            pthread_mutex_lock(&th->thread_lock);
+            th->work = (void*) work; 
+            spec_thread* p = ((spec_thread*) gc->pool->busy_threads);
+            p[th->thread_id] = *th;
+            pthread_mutex_unlock(&th->thread_lock);
+            pthread_cond_signal(&th->thread_cond);
+        }
+        
+        pthread_mutex_unlock(&(gc->pool->pending_job_requests_lock));
+        printf("Freed Lock\n");
+
+
+        if(!queue_empty(gc->pool->completed_threads))
+        {
+            pthread_mutex_lock(&(gc->pool->completed_threads_lock));
+            while(!queue_empty(gc->pool->completed_threads))
             {
-                thread_context* tc = (thread_context*) dequeue(temp);
+                int* i = (int*) dequeue(gc->pool->completed_threads);
+                spec_thread* s = (spec_thread*) (gc->pool->busy_threads + (*i));
+                thread_context* tc = (thread_context*) (((work_t*) s->work)->arg);
+                
                 quick_data* q = (quick_data*) malloc(sizeof(quick_data));
                 q->buffer = (char*)malloc(tc->full_output_vector->total_elements);
                 memcpy(q->buffer, tc->full_output_vector->elements, tc->full_output_vector->occupied_elements);
@@ -268,10 +289,16 @@ ulg deflate(global_context* gc)
                     dispatch(gc->pool, deflate_work, (void*)tc);
                 }                    
                 insert_into_sorted_linked_list(gc->processed_blocks, tc->block_number, (void*)q);
+                
+                tc = grab_another_block(gc, tc);
+                if(tc == NULL) { gc->pool->shutdown = 1; }
+                else dispatch(gc->pool, deflate_work, (void*) tc);
+                
+                enqueue(gc->pool->free_threads, s);
             }
-            pthread_mutex_unlock(&(gc->output_fd_lock));
+            pthread_mutex_unlock(&(gc->pool->completed_threads_lock));
         }
-            
+        
         first_pass = 0;
         if(gc->processed_blocks->head != NULL)
         {
@@ -290,8 +317,8 @@ ulg deflate(global_context* gc)
             }
         }
         
-        if(first_pass == 1) { pthread_mutex_unlock(&(gc->output_block_lock)); pthread_cond_signal(&gc->more_io_output); }
-        if(quit_flag == 1) break;
+        if(gc->pool->shutdown == 1)
+        { break; }
     }
 
 	void* status;

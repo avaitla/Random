@@ -240,14 +240,14 @@ threadpool* create_threadpool(unsigned int num_threads_in_pool)
     pool->pending_job_requests = initialize_queue();
     pool->completed_threads = initialize_queue();
     pool->free_threads = initialize_queue();
-    pool->busy_threads = (void*) malloc(sizeof(spec_thread) * num_threads_in_pool);
+    pool->busy_threads = (spec_thread*) malloc(sizeof(spec_thread) * num_threads_in_pool);
     pool->shutdown = 0;
 
     //initialize mutex and condition variables.  
     pthread_mutex_init(&pool->pending_job_requests_lock, NULL);
     pthread_mutex_init(&pool->completed_threads_lock, NULL);
     pthread_cond_init(&pool->pending_job_requests_cond, NULL);
-    pthread_cond_init(&pool->completed_threads_cond, NULL);
+    //pthread_cond_init(&pool->completed_threads_cond, NULL);
     
     //make threads
     int i;
@@ -275,14 +275,14 @@ void* do_work(void* arg)
         { pthread_mutex_unlock(&(c->thread_lock)); pthread_exit(NULL); }
         
         work_t* job = (work_t*) c->work;
-        (job->routine) (job->arg);
+        (job->routine) (job->arg); free(job);
         
         pthread_mutex_lock(&(c->pool->completed_threads_lock));
         enqueue(c->pool->completed_threads, &(c->thread_id));
         pthread_mutex_unlock(&(c->pool->completed_threads_lock));
         
         pthread_mutex_unlock(&(c->thread_lock));
-        pthread_cond_signal(&(c->pool->completed_threads_cond));
+        pthread_cond_signal(&(c->pool->pending_job_requests_cond));
     }
 
     return NULL;
@@ -291,12 +291,14 @@ void* do_work(void* arg)
 
 void dispatch(threadpool* pl, void* (*dispatch_to_here) (void*), void *arg)
 {
+    printf("Hello Wordl!");
     work_t* wrk = (work_t*) malloc(sizeof(work_t));
     wrk->arg = arg; wrk->routine = dispatch_to_here;
     pthread_mutex_lock(&(pl->pending_job_requests_lock));
     enqueue(pl->pending_job_requests, wrk);
     pthread_mutex_unlock(&(pl->pending_job_requests_lock));
     pthread_cond_signal(&(pl->pending_job_requests_cond));
+    printf("Done!\n");
 }
 
 

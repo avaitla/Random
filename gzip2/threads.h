@@ -97,7 +97,7 @@ typedef struct _threadpool_st {
     queue* pending_job_requests;
 
     pthread_mutex_t completed_threads_lock;		//lock on the queue list
-    pthread_cond_t completed_threads_cond;	//non empty condition variable
+    //pthread_cond_t completed_threads_cond;	//non empty condition variable
    	queue* completed_threads;
     
     queue* free_threads;
