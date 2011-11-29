@@ -218,7 +218,7 @@ typedef struct global_context
     unsigned int next_block_to_output;      /* next chunk that needs to be sent to the ofd */
 
     // Assigned in zip.c
-    _threadpool* pool;                      /* pool of worker threads */
+    threadpool* pool;                      /* pool of worker threads */
 
     // Assigned in zip.c
     unsigned int blocks_read;               /* number of input block reads currently with access to a thread
@@ -372,7 +372,7 @@ extern void lm_init (int pack_level, ush* flags, thread_context* tc);
 extern void fill_window(thread_context* tc);
 extern int longest_match(IPos cur_match, thread_context* tc);
 extern void* deflate_work(void* arg);
-extern void thread_context_init(global_context* gc, thread_context* tc);
+extern void thread_context_init(thread_context* tc);
 extern thread_context* grab_another_block(global_context* gc, thread_context* tc);
 extern void* io_out_function(void* arg);
 extern ulg deflate(global_context* gc);

@@ -82,6 +82,7 @@ int zip(global_context* gc)
     gc->thread_return_queue = initialize_queue();
     gc->output_queue = initialize_queue();
     gc->processed_blocks = init_sorted_linked_list();
+    gc->kill_output_io_thread = 0;
     pthread_mutex_init(&(gc->output_block_lock), NULL);
     pthread_mutex_init(&(gc->output_fd_lock), NULL);
     pthread_cond_init(&(gc->take_io_action), NULL);
@@ -101,7 +102,9 @@ int zip(global_context* gc)
     gc->last_block_number = 0;
     gc->block_number = 1;
 
+    printf("Starting Deflation\n");
     (void)deflate(gc);
+    printf("Completed Deflation\n");
 
     /* Write the crc and uncompressed size */
     headerbuffer[i] = (char)(gc->crc);

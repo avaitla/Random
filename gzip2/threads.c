@@ -220,148 +220,85 @@ int peek_top(sorted_linked_list* list)
 /*      Thread Pool Interfaces                                         */
 /***********************************************************************/
 
-
-// Slightly Modified to avoid indefinite locking from Jeanna Matthews Code:
-// http://people.clarkson.edu/~jmatthew/cs644.archive/cs644.fa2001/proj/locksmith/code/ExampleTest/threadpool.c
-
-_threadpool* create_threadpool(unsigned int num_threads_in_pool)
+spec_thread* new_spec_thread(int thread_id, threadpool* p)
 {
-  _threadpool *pool;
-  int i;
-
-  if (num_threads_in_pool <= 0) return NULL;
-
-  pool = (_threadpool *) malloc(sizeof(_threadpool));
-  if (pool == NULL) { fprintf(stderr, "Out of memory creating a new threadpool!\n"); return NULL; }
-
-  pool->threads = (pthread_t*) malloc (sizeof(pthread_t) * num_threads_in_pool);
-  if(!pool->threads) { fprintf(stderr, "Out of memory creating a new threadpool!\n"); return NULL; }
-
-  pool->num_threads = num_threads_in_pool;
-  pool->qsize = 0;
-  pool->qhead = NULL;
-  pool->qtail = NULL;
-  pool->shutdown = 0;
-  pool->dont_accept = 0;
-
-  //initialize mutex and condition variables.  
-  if(pthread_mutex_init(&pool->qlock,NULL)) { fprintf(stderr, "Mutex initiation error!\n"); return NULL; }
-  if(pthread_cond_init(&(pool->q_empty),NULL)) { fprintf(stderr, "CV initiation error!\n"); return NULL; }
-  if(pthread_cond_init(&(pool->q_not_empty),NULL)) { fprintf(stderr, "CV initiation error!\n");	return NULL; }
-
-  //make threads
-  for (i = 0;i < num_threads_in_pool; i++)
-  {   if(pthread_create(&(pool->threads[i]),NULL,do_work,pool))
-      { fprintf(stderr, "Thread initiation error!\n"); return NULL; }
-      printf("Thread %d Created.\n", i);
-  }
-  return pool;
+    spec_thread* c = (spec_thread*) malloc(sizeof(spec_thread));
+    pthread_mutex_init(&c->thread_lock, NULL);
+    pthread_cond_init(&c->thread_cond, NULL);
+    c->pool = p; c->work = NULL;
+    c->shutdown = 0; c->thread_id = thread_id; 
+    pthread_create(&c->thread, NULL, do_work, c);
+    return c;
 }
 
-
-void dispatch(_threadpool* from_me, void* (*dispatch_to_here) (void*), void *arg)
+threadpool* create_threadpool(unsigned int num_threads_in_pool)
 {
-    _threadpool *pool = (_threadpool *) from_me;
-    work_t * cur;
-    int k; k = pool->qsize;
+    if (num_threads_in_pool <= 0) return NULL;
 
-    //make a work queue element.
-    cur = (work_t*) malloc(sizeof(work_t));
-    if(cur == NULL) { fprintf(stderr, "Out of memory creating a work struct!\n"); return; }
+    threadpool *pool = (threadpool*) malloc(sizeof(threadpool));
+    pool->num_threads = num_threads_in_pool; pool->qsize = 0;
+    pool->pending_job_requests = initialize_queue();
+    pool->completed_threads = initialize_queue();
+    pool->free_threads = initialize_queue();
+    pool->busy_threads = (void*) malloc(sizeof(spec_thread) * num_threads_in_pool);
+    pool->shutdown = 0;
 
-    cur->routine = (void*) dispatch_to_here;
-    cur->arg = arg; cur->next = NULL;
-
-    pthread_mutex_lock(&(pool->qlock));
-
-    // In case someone wants to queue more jobs
-    if(pool->dont_accept)
-    { free(cur); return; }
-
-    if(pool->qsize == 0)
-    {  
-        pool->qhead = cur;  //set to only one
-        pool->qtail = cur;
-        pthread_cond_signal(&(pool->q_not_empty));  //I am not empty.
-    }
-    else 
-    {
-        pool->qtail->next = cur;	//add to end;
-        pool->qtail = cur;			
-	}
-    pool->qsize++;
-    pthread_mutex_unlock(&(pool->qlock));  //unlock the queue.
-}
-
-
-void destroy_threadpool(_threadpool* pool)
-{
-    void* nothing;
-    int i = 0;
-
-    pthread_mutex_lock(&(pool->qlock));
-    pool->dont_accept = 1;
-    while(pool->qsize != 0) { pthread_cond_wait(&(pool->q_empty),&(pool->qlock)); }
-
-    pool->shutdown = 1;
-    pthread_cond_broadcast(&(pool->q_not_empty));
-    pthread_mutex_unlock(&(pool->qlock));
-
-    for(;i < pool->num_threads;i++)
+    //initialize mutex and condition variables.  
+    pthread_mutex_init(&pool->pending_job_requests_lock, NULL);
+    pthread_mutex_init(&pool->completed_threads_lock, NULL);
+    pthread_cond_init(&pool->pending_job_requests_cond, NULL);
+    pthread_cond_init(&pool->completed_threads_cond, NULL);
+    
+    //make threads
+    int i;
+    for (i = 0; i < num_threads_in_pool; i++)
     {   
-        pthread_cond_broadcast(&(pool->q_not_empty));
-        pthread_join(pool->threads[i],&nothing);
+        spec_thread* th = new_spec_thread(i, pool);
+        enqueue(pool->free_threads, (void*) th); 
     }
-
-	free(pool->threads);
-	pthread_mutex_destroy(&(pool->qlock));
-	pthread_cond_destroy(&(pool->q_empty));
-	pthread_cond_destroy(&(pool->q_not_empty));
-	return;
+  
+    return pool;
 }
 
 
 /* This function is the work function of the thread */
-void* do_work(void* p)
+void* do_work(void* arg)
 {
-    _threadpool* pool = (_threadpool*) p;
-    work_t* cur;	//The q element
-
+    spec_thread* c = (spec_thread*) arg;
     while(1)
     {
-		pthread_mutex_lock(&(pool->qlock));  //get the q lock.
-        while(pool->qsize == 0)  // If size is 0 Simply Wait
-        {
-		    if(pool->shutdown) { pthread_mutex_unlock(&(pool->qlock)); pthread_exit(NULL); }
+		pthread_mutex_lock(&(c->thread_lock));
+        while(c->shutdown == 0 && c->work == NULL)
+            pthread_cond_wait(&(c->thread_cond),&(c->thread_lock));
 
-            //wait until the condition says its not emtpy and give up the lock. 
-            pthread_mutex_unlock(&(pool->qlock));  //get the qlock.
-
-            pthread_cond_wait(&(pool->q_not_empty),&(pool->qlock));
-            //check to see if in shutdown mode.
-            if(pool->shutdown) { pthread_mutex_unlock(&(pool->qlock)); pthread_exit(NULL); }
-        }
-
-        cur = pool->qhead;	//set the cur variable.
-        pool->qsize--;		//decriment the size.
-
-        if(pool->qsize == 0) { pool->qhead = NULL; pool->qtail = NULL; }
-        else { pool->qhead = cur->next; }
-
-        //the q is empty again, now signal that its empty
-		if(pool->qsize == 0 && ! pool->shutdown) { pthread_cond_signal(&(pool->q_empty)); }
-
-        pthread_mutex_unlock(&(pool->qlock));
-
-        // Custom Modification Not Included in Original Pthread Code
-        if(pool->qsize > 0) { pthread_cond_signal(&(pool->q_not_empty)); }
+	    if(c->shutdown)
+        { pthread_mutex_unlock(&(c->thread_lock)); pthread_exit(NULL); }
         
-        (cur->routine) (cur->arg);  //actually do work.
-		free(cur);                  //free the work storage.  	
-	}
+        work_t* job = (work_t*) c->work;
+        (job->routine) (job->arg);
+        
+        pthread_mutex_lock(&(c->pool->completed_threads_lock));
+        enqueue(c->pool->completed_threads, &(c->thread_id));
+        pthread_mutex_unlock(&(c->pool->completed_threads_lock));
+        
+        pthread_mutex_unlock(&(c->thread_lock));
+        pthread_cond_signal(&(c->pool->completed_threads_cond));
+    }
 
     return NULL;
 }
+
+
+void dispatch(threadpool* pl, void* (*dispatch_to_here) (void*), void *arg)
+{
+    work_t* wrk = (work_t*) malloc(sizeof(work_t));
+    wrk->arg = arg; wrk->routine = dispatch_to_here;
+    pthread_mutex_lock(&(pl->pending_job_requests_lock));
+    enqueue(pl->pending_job_requests, wrk);
+    pthread_mutex_unlock(&(pl->pending_job_requests_lock));
+    pthread_cond_signal(&(pl->pending_job_requests_cond));
+}
+
 
 
 /***********************************************************************/

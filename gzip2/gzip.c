@@ -38,8 +38,13 @@ int create_outfile(global_context* gc)
     int flags = O_WRONLY | O_CREAT | O_EXCL | O_BINARY;
 
     gc->ofd = open(gc->out_filepath, flags, RW_USER);
-	if (gc->ofd == -1) { return -1; }
-
+    if(gc->ofd == -1)
+    {
+        close(gc->ifd);
+        free(gc->out_filepath);
+        free(gc->in_filepath);
+        free(gc); abort_gzip();
+    }
 	if(stat(gc->out_filepath, &ostat) != 0)
     { close(gc->ofd); return -1; }
 
@@ -83,25 +88,24 @@ int main(int argc, char **argv)
 
 
 
-    char cwd[1024];
-    if((char*)getcwd(cwd, sizeof(cwd)) == NULL)
+    char cwd[1024]; memset(cwd, 0, 1024);
+    if((char*)getcwd(cwd, sizeof(cwd)-1) == NULL)
     { printf("Illegal CWD Result\n"); free(gc); return -1; }
 
-    // malloc'ing like a bossssss since '91
     char* in_filepath = (char*)malloc(strlen(cwd) + 1 + strlen(argv[1]) + 1);
     memcpy(in_filepath, cwd, (int)strlen(cwd)); in_filepath[strlen(cwd)] = '/';
     strcpy(in_filepath + strlen(cwd) + 1, argv[1]);
     gc->in_filepath = in_filepath; gc->level = 6;
 
+    
     gc->work = zip;
-    char* out_filepath = (char*)malloc(strlen(in_filepath) + 3);
+    char* out_filepath = (char*)malloc(strlen(in_filepath) + 4);
     memcpy(out_filepath, in_filepath, strlen(in_filepath));
-    memcpy(out_filepath + strlen(in_filepath), ".gz\0", 3);
+    memcpy(out_filepath + strlen(in_filepath), ".gz\0", 4);
     gc->out_filepath = out_filepath;
    
     printf("Input Path: %s\n", gc->in_filepath);
     printf("Output Path: %s\n", gc->out_filepath);
-    
     /* Now we Have the Input Path and Output Path */
     treatfile(gc);
     return 0;

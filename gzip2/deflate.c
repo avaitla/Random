@@ -117,16 +117,17 @@
 //      ulg flush_block(char* buf, ulg stored_len, int eof, thread_context* tc) - See trees.c
 
 
-void thread_context_init(global_context* gc, thread_context* tc)
+void thread_context_init(thread_context* tc)
 {
     bi_init(tc);
     ct_init(&(tc->attr), &(tc->method), tc);
-    lm_init(gc->level, &(tc->deflate_flags), tc);
+    lm_init(tc->compr_level, &(tc->deflate_flags), tc);
 }
 
 thread_context* new_thread_context(global_context* gc)
 {
 	thread_context* tc = (thread_context*) malloc(sizeof(thread_context));
+    memset((char*)tc, 0, sizeof(thread_context));
 	tc->full_input_buffer = (char*) malloc(gc->block_chunk_size);
 	tc->full_output_vector = init_vector(gc->block_chunk_size, sizeof(char));
 	tc->full_output_buffer_length = 0;
@@ -134,7 +135,7 @@ thread_context* new_thread_context(global_context* gc)
 	tc->eofile = 0; tc->compressed_len = 0; tc->d_buf = (ush*) malloc(DIST_BUFSIZE * sizeof(ush));
 	tc->outbuf = (uch*) malloc(OUTBUFSIZ + OUTBUF_EXTRA);
 	tc->inbuf = (uch*) malloc(INBUFSIZ + INBUF_EXTRA);
-	thread_context_init(gc, tc);
+    tc->compr_level = gc->level;
 	return tc;
 }
 
@@ -143,7 +144,6 @@ thread_context* clean_old_thread_context(global_context* gc, thread_context* tc)
 	tc->full_output_buffer_length = 0;
 	tc->window = (uch*) malloc(2L * WSIZE);
 	tc->eofile = 0; tc->compressed_len = 0;
-	thread_context_init(gc, tc);
 	return tc;
 }
 
@@ -230,12 +230,12 @@ ulg deflate(global_context* gc)
 {
     pthread_t io_out_thread;
     pthread_create(&io_out_thread, NULL, io_out_function, (void*)gc);
-
     int i; int first_pass = 0; int quit_flag = 0;
     for(i = 0; i != gc->number_of_threads; i++)
     {
 		if(gc->bytes_to_read > 0)
         {	
+            printf("GC->bytes_to_read = %llu\n", gc->bytes_to_read);
 			thread_context* tc = grab_another_block(gc, NULL);
 			if(tc == NULL) { break; }
 			dispatch(gc->pool, deflate_work, (void*)tc);
@@ -243,6 +243,7 @@ ulg deflate(global_context* gc)
 		else break;
     }
 
+    printf("Done Dispatching Initial Batches\n");
     queue* temp = initialize_queue();
     while(1)
     {
@@ -294,7 +295,7 @@ ulg deflate(global_context* gc)
     }
 
 	void* status;
-    destroy_threadpool(gc->pool);
+    //destroy_threadpool(gc->pool);
 	gc->kill_output_io_thread = 1;
 	pthread_cond_signal(&(gc->more_io_output));
 	pthread_join(io_out_thread, &status);
@@ -326,13 +327,15 @@ ulg deflate(global_context* gc)
  */
 void* deflate_work(void* arg)
 {
+    printf("Starting Deflate Work!\n");
     thread_context* tc = (thread_context*)arg;
     IPos hash_head;          /* head of hash chain */
     IPos prev_match;         /* previous match */
     int flush;               /* set if current block must be flushed */
     int match_available = 0; /* set if previous match exists */
     register unsigned match_length = MIN_MATCH-1; /* length of best match */
-
+    thread_context_init(tc);
+    
     /* Process the input block. */
     while (tc->lookahead != 0) {
         /* Insert the string window[strstart .. strstart+2] in the

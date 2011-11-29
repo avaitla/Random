@@ -133,7 +133,7 @@ void ct_init(int* attr, int* methodp, thread_context* tc)
     tc->file_method = methodp;
     tc->compressed_len = tc->input_len = 0L;
         
-    if (tc->static_dtree[0].Len != 0) return; /* ct_init already called */
+    //if (tc->static_dtree[0].Len != 0) return; /* ct_init already called */
 
     /* Initialize the mapping length (0..255) -> length code (0..28) */
     length = 0;
@@ -148,8 +148,8 @@ void ct_init(int* attr, int* methodp, thread_context* tc)
      * in two different ways: code 284 + 5 bits or code 285, so we
      * overwrite length_code[255] to use the best encoding:
      */
-    tc->length_code[length-1] = (uch)code;
 
+    tc->length_code[length-1] = (uch)code;
     /* Initialize the mapping dist (0..32K) -> dist code (0..29) */
     dist = 0;
     for (code = 0 ; code < 16; code++) {
@@ -158,6 +158,7 @@ void ct_init(int* attr, int* methodp, thread_context* tc)
             tc->dist_code[dist++] = (uch)code;
         }
     }
+
     Assert (dist == 256, "ct_init: dist != 256");
     dist >>= 7; /* from now on, all distances are divided by 128 */
     for ( ; code < D_CODES; code++) {
@@ -166,6 +167,7 @@ void ct_init(int* attr, int* methodp, thread_context* tc)
             tc->dist_code[256 + dist++] = (uch)code;
         }
     }
+
     Assert (dist == 256, "ct_init: 256+dist != 512");
 
     /* Construct the codes of the static literal tree */
@@ -179,6 +181,7 @@ void ct_init(int* attr, int* methodp, thread_context* tc)
      * tree construction to get a canonical Huffman tree (longest code
      * all ones)
      */
+
     gen_codes((ct_data *)(tc->static_ltree), L_CODES+1, tc);
 
     /* The static distance tree is trivial: */
@@ -187,6 +190,7 @@ void ct_init(int* attr, int* methodp, thread_context* tc)
         tc->static_dtree[n].Code = bi_reverse(n, 5);
     }
 
+    printf("About to Init Block!\n");
     /* Initialize the first block of the first file: */
     init_block(tc);
 }
@@ -197,13 +201,17 @@ void init_block(thread_context* tc)
 
     /* Initialize the trees. */
     for (n = 0; n < L_CODES;  n++) tc->dyn_ltree[n].Freq = 0;
+    printf("\tFinished init Block\n");
     for (n = 0; n < D_CODES;  n++) tc->dyn_dtree[n].Freq = 0;
+    printf("\tFinished init Block\n");
     for (n = 0; n < BL_CODES; n++) tc->bl_tree[n].Freq = 0;
+    printf("\tFinished init Block\n");
 
     tc->dyn_ltree[END_BLOCK].Freq = 1;
     tc->opt_len = tc->static_len = 0L;
     tc->last_lit = tc->last_dist = tc->last_flags = 0;
     tc->flags = 0; tc->flag_bit = 1;
+    printf("\tFinished init Block\n");
 }
 
 void pqdownheap(ct_data* tree, int k, thread_context* tc)

@@ -85,27 +85,41 @@ typedef struct work_st
 {
     void* (*routine) (void*);
     void* arg;
-    struct work_st* next;
 } work_t;
 
 
 typedef struct _threadpool_st {
     int num_threads;            //number of active threads
     int qsize;                  //number in the queue
-    pthread_t *threads;         //pointer to threads
-    work_t* qhead;		        //queue head pointer
-    work_t* qtail;		        //queue tail pointer
-    pthread_mutex_t qlock;		//lock on the queue list
-    pthread_cond_t q_not_empty;	//non empty condition variable
-    pthread_cond_t q_empty;     //empty condition variable
+    
+	pthread_mutex_t pending_job_requests_lock;
+	pthread_cond_t pending_job_requests_cond;
+    queue* pending_job_requests;
+
+    pthread_mutex_t completed_threads_lock;		//lock on the queue list
+    pthread_cond_t completed_threads_cond;	//non empty condition variable
+   	queue* completed_threads;
+    
+    queue* free_threads;
+    void* busy_threads;
+    
     int shutdown;
-    int dont_accept;
-} _threadpool;
+} threadpool;
 
 
-_threadpool* create_threadpool(unsigned int num_threads_in_pool);
-void dispatch(_threadpool* from_me, void* (*dispatch_to_here) (void*), void *arg);
-void destroy_threadpool(_threadpool* pool);
+typedef struct _spec_thread
+{
+	threadpool* pool;
+	int shutdown;
+	int	thread_id;
+    pthread_t thread;
+    pthread_mutex_t thread_lock;
+    pthread_cond_t thread_cond;
+    void* work; 
+} spec_thread;
+
+threadpool* create_threadpool(unsigned int num_threads_in_pool);
+void dispatch(threadpool* from_me, void* (*dispatch_to_here) (void*), void *arg);
 void* do_work(void* p);
 
 #endif
