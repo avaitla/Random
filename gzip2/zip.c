@@ -32,7 +32,7 @@
 // Thread Context Variables Directly Used / Managed
 //      unsigned int full_input_buffer_remaining_bytes   - Number of bytes that are still available from the handle
 //      unsigned int full_input_buffer_bytes_read        - Number of bytes read from the pseudo handle
-//	char* full_input_buffer				 - See deflate.c
+//	    char* full_input_buffer				 - See deflate.c
 
 // Functions Defined
 //      int zip(global_context* gc) - Function that does the heavy lifting
@@ -60,9 +60,6 @@
 
 int zip(global_context* gc)
 {
-    gc->number_of_threads = 6;
-    gc->block_chunk_size = 21000000;
-    
     char *p = (char*) basename(gc->in_filepath);
     long length = strlen(p);
     long header_length = 4 + 4 + 1 + 1 + length + 1 + 4 + 4;
@@ -80,7 +77,7 @@ int zip(global_context* gc)
     headerbuffer[7] = (char)(time_stamp >> 24);
 
     /* Write deflated file to zip file */
-    gc->crc = updcrc(0, 0); gc->bytes_in = 0LL;
+    gc->crc = updcrc(0, 0); gc->blocks_read = 0;
     gc->pool = create_threadpool(gc->number_of_threads);
     gc->thread_return_queue = initialize_queue();
     gc->output_queue = initialize_queue();
@@ -100,6 +97,9 @@ int zip(global_context* gc)
     gc->header_bytes = (long)header_length;
     gc->bytes_out = header_length;
     write(gc->ofd, headerbuffer, header_length - 8);
+    gc->next_block_to_output = 1;
+    gc->last_block_number = 0;
+    gc->block_number = 1;
 
     (void)deflate(gc);
 
@@ -117,14 +117,14 @@ int zip(global_context* gc)
     return OK;
 }
 
-int thread_read_buf(char *buf, unsigned long size, thread_context* tc)
+int thread_read_buf(char *buf, unsigned int size, thread_context* tc)
 {
     if(size < tc->full_input_buffer_remaining_bytes)
     { size = tc->full_input_buffer_remaining_bytes; }
 
     tc->full_input_buffer_remaining_bytes -= size;
     memcpy(buf, tc->full_input_buffer + tc->full_input_buffer_bytes_read, size);
-    tc->full_input_buffer_bytes_read += (unsigned long long int)size;
+    tc->full_input_buffer_bytes_read += size;
     return (int)size;
 }
 
@@ -143,7 +143,7 @@ int file_read(char *buf, unsigned long size, global_context* gc)
         total_bytes_read += len;
     }
         
-    gc->crc = updcrc((uch*)buf, len);
+    gc->crc = updcrc((uch*)buf, total_bytes_read);
     gc->bytes_in += (unsigned long long int)size;
     return (int)size;
 }

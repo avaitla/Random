@@ -202,13 +202,6 @@ void* io_out_function(void* arg)
     }
 }
 
-
-/* ===========================================================================
- * Same as above, but achieves better compression. We use a lazy
- * evaluation for matches: a match is finally adopted only if there is
- * no better match at the next window position.
- */
-/* This is the main IO thread that will join back all items;*/
 ulg deflate(global_context* gc)
 {
     pthread_t io_out_thread;
@@ -272,7 +265,7 @@ ulg deflate(global_context* gc)
         if(quit_flag == 1) break;
     }
 
-    destroy_threadpool(gc->pool);
+    destroy_threadpool(gc->pool);*/
 }
 
 

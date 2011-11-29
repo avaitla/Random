@@ -163,52 +163,91 @@ typedef struct tree_desc {
 
 typedef struct global_context
 {
-
+    // Assigned in gzip.c
     int level;                              /* Compression Level */
 
+    // Assigned in gzip.c
     int  ifd;                               /* input file descriptor */
+
+    // Assigned in gzip.c
     int  ofd;                               /* output file descriptor */
 
+    // Assigned in gzip.c
     char* in_filepath;                      /* full path of input file */
+
+    // Assigned in gzip.c
     char* out_filepath;                     /* full path of output file */
 
+    // Assigned in gzip.c
     struct stat istat;                      /* status for input file */
+
+    // Assigned in gzip.c
     unsigned int decompress;                /* 1 if we are decompressing, 0 if compressing */
+
+    // Assigned in gzip.c
     unsigned long long int ifile_size;      /* Complete input file size in bytes */
 
+    // Assigned in gzip.c
     unsigned long long int bytes_to_read;   /* total number of bytes available to be read (effectively (ifile_size - bytes_in)) */
+
+    // Assigned in gzip.c
     unsigned long long int bytes_in;        /* total number of bytes read in from the input file */
+
+    // Assigned in gzip.c
     unsigned long long int bytes_out;       /* total number of bytes sent out to the output file */
+
+    // Assigned in zip.c
     unsigned long header_bytes;             /* number of bytes in gzip header */
 
+    // Assigned in zip.c
     unsigned int last_block_number;         /* the last block number to flush out, 0 if not computed yet */
+
+    // Assigned in zip.c
     unsigned int block_number;              /* the next block read in will be this index */
+
+    // Assigned in gzip.c
     unsigned long block_chunk_size;         /* the size to chunk the input file by for each thread */ 
+
+    // Assigned in gzip.c
     unsigned int number_of_threads;         /* number of threads we want to use */
+
+    // Assigned in zip.c
     unsigned int next_block_to_output;      /* next chunk that needs to be sent to the ofd */
+
+    // Assigned in zip.c
     _threadpool* pool;                      /* pool of worker threads */
 
+    // Assigned in zip.c
     unsigned int blocks_read;               /* number of input block reads currently with access to a thread
                                                or that hasn't been flushed out yet, if this number is greater
                                                than 2*number_of_threads, we stop reading in more information */
 
+    // Assigned in zip.c
     pthread_mutex_t output_block_lock;      /* lock for threads to add their output buffers back to processed_blocks */
-    queue* thread_return_queue;    
+
+    // Assigned in zip.c
+    queue* thread_return_queue;
+
+    // Assigned in zip.c
     pthread_cond_t take_io_action;          /* This condition variable will be signaled whenever a thread adds to the processed_blocks list */
 
-
+    // Assigned in zip.c
     sorted_linked_list* processed_blocks;   /* blocks returned by threads (they should be accessed with the lock) */
 
+    // Assigned in zip.c
     pthread_mutex_t output_fd_lock;
+
+    // Assigned in zip.c
     queue* output_queue;
+
+    // Assigned in zip.c
     pthread_cond_t more_io_output;
 
-
-    int compr_level;                        /* compression level we are using */
+    // Assigned in gzip.c
     int (*work) (struct global_context*);   /* function to do the zipping or unzipping */
 
+    // Assigned in zip.c
     unsigned long crc;                      /* current crc checksum for the bytes read in */
-
 } global_context;
 
 typedef struct quick_data
@@ -321,7 +360,7 @@ extern int main(int argc, char **argv);
 
 // zip.c
 extern int zip(global_context* gc);
-extern int thread_read_buf(char *buf, unsigned long size, thread_context* tc); 
+int thread_read_buf(char *buf, unsigned int size, thread_context* tc); 
 extern int file_read(char *buf, unsigned long size, global_context* gc);
 
 // deflate.c

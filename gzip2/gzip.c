@@ -54,7 +54,8 @@ void treatfile(global_context* gc)
     gc->ifile_size = (gc->istat).st_size;
     gc->bytes_to_read = gc->ifile_size;
     gc->ifd = open(gc->in_filepath, !gc->decompress ? O_RDONLY : O_RDONLY | O_BINARY, RW_USER);
-    
+    gc->bytes_in = 0LL; gc->bytes_out = 0LL;    
+
     if (gc->ifd == -1) { printf("Could Not Open File: %s\n", gc->in_filepath); return; }
     //if (gc->decompress) { if (get_method(gc) < 0) { close(gc->ifd); return; } }
 	if(create_outfile(gc) != 0) { close(gc->ifd); return; }
@@ -70,12 +71,17 @@ int main(int argc, char **argv)
 {
     if(argc < 2) { printf("First Argument must be the Filename"); return -1; }
  
-    global_context* gc = (global_context*) malloc(sizeof(global_context));
+    global_context* gc = (global_context*) malloc(sizeof(global_context)); gc->decompress = 0;
     if(argc == 3)
     { if(strcmp(argv[2], "decompress") == 0) { gc->decompress = 1; }
       else { printf("Illegal Second Argument, Must be decompress\n"); free(gc); return -1; }
-      printf("Decompression Not Supported! Use standard GZIP.\n"); return 0;    
+      printf("Decompression Not Supported! Use standard GZIP.\n"); return 0;
     }
+
+    gc->block_chunk_size = 21000000;
+    gc->number_of_threads = 6; 
+
+
 
     char cwd[1024];
     if((char*)getcwd(cwd, sizeof(cwd)) == NULL)
