@@ -124,25 +124,33 @@ void thread_context_init(global_context* gc, thread_context* tc)
     lm_init(gc->level, &(tc->deflate_flags), tc);
 }
 
+thread_context* new_thread_context()
+{
+	thread_context* tc = new_thread_context();
+	tc = (thread_context*) malloc(sizeof(thread_context));
+	tc->full_input_buffer = (char*) malloc(gc->block_chunk_size);
+	tc->full_output_vector = init_vector(gc->block_chunk_size, sizeof(char));
+	return tc;
+}
+
+thread_context* clean_old_thread_context(thread_context* tc)
+{
+	
+	return tc;
+}
 
 thread_context* grab_another_block(global_context* gc, thread_context* tc)
 {
-    if(tc == NULL)
-    {
-        thread_context* tc = NULL;
-        tc = (thread_context*) malloc(sizeof(thread_context));
-        tc->full_input_buffer = (char*) malloc(gc->block_chunk_size);
-        tc->full_output_buffer = (char*) malloc(gc->block_chunk_size);
-    }
+    if(tc == NULL) tc = new_thread_context();		
+    else tc = clean_old_thread_context(tc);
 
-    if(gc->bytes_to_read == 0)
-        gc->last_block_number = gc->block_number == 0 ? 0 : gc->block_number - 1;
+    if(gc->bytes_to_read == 0 || gc->bytes_to_read <= gc->block_chunk_size)
+        gc->last_block_number = gc->block_number;
 
-    tc->block_number = gc->block_number; 
+    tc->block_number = gc->block_number;
     gc->block_number += 1;
     gc->blocks_read += 1;
     
-
     if(gc->bytes_to_read > gc->block_chunk_size)
     {
         tc->full_input_buffer_size = gc->block_chunk_size;
@@ -158,7 +166,6 @@ thread_context* grab_another_block(global_context* gc, thread_context* tc)
         tc->last_block = 1;
         file_read(tc->full_input_buffer, gc->bytes_to_read, gc);
         gc->bytes_in += gc->bytes_to_read;
-        gc->last_block_number = gc->block_number - 1;
         gc->bytes_to_read = 0; 
     }
 
@@ -210,9 +217,13 @@ ulg deflate(global_context* gc)
     int i; int first_pass = 0; int quit_flag = 0;
     for(i = 0; i != gc->number_of_threads; i++)
     {
-        thread_context* tc = grab_another_block(gc, NULL);
-        if(tc == NULL) { break; }
-        dispatch(gc->pool, deflate_work, (void*)tc);
+		if(gc->bytes_to_read > 0)
+        {	
+			thread_context* tc = grab_another_block(gc, NULL);
+			if(tc == NULL) { break; }
+			dispatch(gc->pool, deflate_work, (void*)tc);
+		}
+		else break;
     }
 
     queue* temp = initialize_queue();
@@ -232,6 +243,7 @@ ulg deflate(global_context* gc)
                 quick_data* q = (quick_data*) malloc(sizeof(quick_data));
                 q->buffer = (char*)malloc(tc->full_output_buffer_length);
                 memcpy(q->buffer, tc->full_output_buffer, tc->full_output_buffer_length);
+				free(tc->full_output_buffer); tc->full_output_buffer = NULL;
                 q->length = tc->full_output_buffer_length;
                 if(gc->bytes_to_read != 0)
                 {                    
@@ -265,7 +277,9 @@ ulg deflate(global_context* gc)
         if(quit_flag == 1) break;
     }
 
-    destroy_threadpool(gc->pool);*/
+    destroy_threadpool(gc->pool);
+	
+	// We need to join back io thread here.
 }
 
 
