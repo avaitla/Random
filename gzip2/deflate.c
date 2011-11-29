@@ -124,10 +124,9 @@ void thread_context_init(global_context* gc, thread_context* tc)
     lm_init(gc->level, &(tc->deflate_flags), tc);
 }
 
-thread_context* new_thread_context()
+thread_context* new_thread_context(global_context* gc)
 {
-	thread_context* tc = new_thread_context();
-	tc = (thread_context*) malloc(sizeof(thread_context));
+	thread_context* tc = (thread_context*) malloc(sizeof(thread_context));
 	tc->full_input_buffer = (char*) malloc(gc->block_chunk_size);
 	tc->full_output_vector = init_vector(gc->block_chunk_size, sizeof(char));
 	return tc;
@@ -141,7 +140,7 @@ thread_context* clean_old_thread_context(thread_context* tc)
 
 thread_context* grab_another_block(global_context* gc, thread_context* tc)
 {
-    if(tc == NULL) tc = new_thread_context();		
+    if(tc == NULL) tc = new_thread_context(gc);
     else tc = clean_old_thread_context(tc);
 
     if(gc->bytes_to_read == 0 || gc->bytes_to_read <= gc->block_chunk_size)
@@ -181,9 +180,15 @@ void* io_out_function(void* arg)
     while(1)
     {
         pthread_mutex_lock(&(gc->output_fd_lock));
-        while(queue_empty(gc->output_queue))
+        while(queue_empty(gc->output_queue) && gc->kill_output_io_thread != 1)
             pthread_cond_wait(&(gc->more_io_output), &(gc->output_fd_lock));
 
+		if(gc->kill_output_io_thread == 1 && queue_empty(gc->output_queue))
+		{
+			pthread_mutex_unlock(&(gc->output_fd_lock));
+			break;
+		}
+		
         while(!queue_empty(gc->output_queue))
             enqueue(q, dequeue(gc->output_queue));
 
@@ -241,10 +246,9 @@ ulg deflate(global_context* gc)
             {
                 thread_context* tc = (thread_context*) dequeue(temp);
                 quick_data* q = (quick_data*) malloc(sizeof(quick_data));
-                q->buffer = (char*)malloc(tc->full_output_buffer_length);
-                memcpy(q->buffer, tc->full_output_buffer, tc->full_output_buffer_length);
-				free(tc->full_output_buffer); tc->full_output_buffer = NULL;
-                q->length = tc->full_output_buffer_length;
+                q->buffer = (char*)malloc(tc->full_output_vector->total_elements);
+                memcpy(q->buffer, tc->full_output_vector->elements, tc->full_output_vector->occupied_elements);
+                q->length = tc->full_output_vector->occupied_elements;
                 if(gc->bytes_to_read != 0)
                 {                    
                     tc = grab_another_block(gc, tc);
@@ -277,9 +281,11 @@ ulg deflate(global_context* gc)
         if(quit_flag == 1) break;
     }
 
+	void* status;
     destroy_threadpool(gc->pool);
-	
-	// We need to join back io thread here.
+	gc->kill_output_io_thread = 1;
+	pthread_cond_signal(&(gc->more_io_output));
+	pthread_join(io_out_thread, &status);
 }
 
 
@@ -406,6 +412,7 @@ void* deflate_work(void* arg)
 
     if(tc->last_block) FLUSH_BLOCK(1); /* eof */
     else FLUSH_BLOCK(0);
+	
     return NULL;
 }
 

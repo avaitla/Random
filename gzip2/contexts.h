@@ -248,6 +248,8 @@ typedef struct global_context
 
     // Assigned in zip.c
     unsigned long crc;                      /* current crc checksum for the bytes read in */
+
+	int kill_output_io_thread;				/* Set this to one to signal the output io thread to exit */
 } global_context;
 
 typedef struct quick_data
@@ -269,7 +271,6 @@ typedef struct thread_context
     ush deflate_flags;
     char* full_input_buffer;
     unsigned int full_input_buffer_size;
-	char* full_output_buffer;
 	vector* full_output_vector;
     unsigned int full_output_buffer_length;
     unsigned int block_number;
@@ -373,7 +374,7 @@ extern thread_context* grab_another_block(global_context* gc, thread_context* tc
 extern void* io_out_function(void* arg);
 extern ulg deflate(global_context* gc);
 extern config configuration_table[10];
-thread_context* new_thread_context();
+thread_context* new_thread_context(global_context* gc);
 thread_context* clean_old_thread_context(thread_context* tc);
 
 // trees.c

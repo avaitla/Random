@@ -60,7 +60,7 @@ void write_error()
 { abort_gzip(); }
 
 void write_buf(void* buf, unsigned cnt, thread_context* tc)
-{ memcpy_safe(tc->output_vector, buf, cnt); }
+{ memcpy_safe(tc->full_output_vector, buf, cnt); }
 
 ulg updcrc(uch *s, unsigned n)
 {
@@ -110,7 +110,7 @@ int fill_inbuf(int eof_ok, thread_context* tc)
 void flush_outbuf(thread_context* tc)
 {
     if (tc->outcnt == 0) return;
-    memcpy_safe(tc->output_vector, (char*) tc->outbuf, tc->outcnt); 
+    memcpy_safe(tc->full_output_vector, (char*) tc->outbuf, tc->outcnt); 
     tc->bytes_out += (ulg)(tc->outcnt);
     tc->outcnt = 0;
 }
