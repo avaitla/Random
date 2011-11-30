@@ -102,9 +102,9 @@ int zip(global_context* gc)
     gc->last_block_number = 0;
     gc->block_number = 1;
 
-    printf("Starting Deflation\n");
+    //printf("Starting Deflation\n");
     (void)deflate(gc);
-    printf("Completed Deflation\n");
+    //printf("Completed Deflation\n");
     
 
     /* Write the crc and uncompressed size */
@@ -123,12 +123,12 @@ int zip(global_context* gc)
 
 unsigned int thread_read_buf(char *buf, unsigned int size, thread_context* tc)
 {
-    printf("Reading %u\n", size);
+    //printf("Reading %u\n", size);
     
     if(size > tc->full_input_buffer_remaining_bytes)
     { size = tc->full_input_buffer_remaining_bytes; }
 
-    printf("Trying to Read %u Bytes from Buffer of Size %u\n", size, tc->full_input_buffer_remaining_bytes);
+    //printf("Trying to Read %u Bytes from Buffer of Size %u\n", size, tc->full_input_buffer_remaining_bytes);
 
     tc->full_input_buffer_remaining_bytes -= size;
     memcpy(buf, tc->full_input_buffer + tc->full_input_buffer_bytes_read, size);
@@ -152,8 +152,8 @@ unsigned int file_read(char *buf, unsigned int size, global_context* gc)
     }
         
     gc->crc = updcrc((uch*)buf, total_bytes_read);
-    printf("Total_Bytes_Read: %d + CRC: %lu", total_bytes_read, gc->crc);
+    //printf("Total_Bytes_Read: %d + CRC: %lu", total_bytes_read, gc->crc);
     gc->bytes_in += (unsigned long long int)size;
-    printf("Total Size: %llu\n", gc->bytes_in);
+    //printf("Total Size: %llu\n", gc->bytes_in);
     return size;
 }

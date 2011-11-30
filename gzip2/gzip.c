@@ -65,9 +65,9 @@ void treatfile(global_context* gc)
     //if (gc->decompress) { if (get_method(gc) < 0) { close(gc->ifd); return; } }
 	if(create_outfile(gc) != 0) { close(gc->ifd); return; }
 
-    printf("Starting Work\n");
+    //printf("Starting Work\n");
     (*(gc->work))(gc);
-    printf("Completeing Work\n");
+    //printf("Completeing Work\n");
     close(gc->ifd);
     close(gc->ofd);
 }

@@ -180,7 +180,7 @@ thread_context* grab_another_block(global_context* gc, thread_context* tc)
     tc->bl_desc.max_length = MAX_BITS;
     tc->bl_desc.max_code = 0;
     
-    printf("Hello World!\n");
+    //printf("Hello World!\n");
     if(gc->bytes_to_read > gc->block_chunk_size)
     {
         tc->full_input_buffer_size = gc->block_chunk_size;
@@ -260,26 +260,26 @@ ulg deflate(global_context* gc)
     {
 		if(gc->bytes_to_read > 0)
         {	
-            printf("GC->bytes_to_read = %llu\n", gc->bytes_to_read);
+            //printf("GC->bytes_to_read = %llu\n", gc->bytes_to_read);
 			thread_context* tc = grab_another_block(gc, NULL);
             thread_context_init(tc);
 			if(tc == NULL) { break; }
-            printf("HSITTTTTTTTTTGAFD\n");
+            //printf("HSITTTTTTTTTTGAFD\n");
 			dispatch(gc->pool, deflate_work, (void*)tc);
 		}
 		else break;
     }
 
-    printf("Done Dispatching Initial Batches\n");
+    //printf("Done Dispatching Initial Batches\n");
     queue* temp = initialize_queue();
     while(1)
     {
-        printf("Entered While Loop\n");
+        //printf("Entered While Loop\n");
         pthread_mutex_lock(&(gc->pool->pending_job_requests_lock));
         while(queue_empty(gc->pool->pending_job_requests) && queue_empty(gc->pool->completed_threads))
             pthread_cond_wait(&(gc->pool->pending_job_requests_cond), &(gc->pool->pending_job_requests_lock));
             
-        printf("Got Lock!\n");
+        //printf("Got Lock!\n");
         while(!queue_empty(gc->pool->pending_job_requests) && !queue_empty(gc->pool->free_threads))
         {
             spec_thread* th = dequeue(gc->pool->free_threads);
@@ -293,14 +293,14 @@ ulg deflate(global_context* gc)
         }
         
         pthread_mutex_unlock(&(gc->pool->pending_job_requests_lock));
-        printf("Freed Lock\n");
+        //printf("Freed Lock\n");
 
         if(!queue_empty(gc->pool->completed_threads))
         {
             pthread_mutex_lock(&(gc->pool->completed_threads_lock));
             while(!queue_empty(gc->pool->completed_threads))
             {
-                printf("Grabbed A completed Block\n");
+                //printf("Grabbed A completed Block\n");
                 int* it = (int*) dequeue(gc->pool->completed_threads);
                 spec_thread* s = (spec_thread*) (gc->pool->busy_threads + (*it));
                 work_t* work = (work_t*) s->work;
@@ -310,7 +310,7 @@ ulg deflate(global_context* gc)
                 q->buffer = (char*)malloc(tc->full_output_vector->total_elements);
                 memcpy(q->buffer, tc->full_output_vector->elements, tc->full_output_vector->occupied_elements * tc->full_output_vector->element_size);
                 q->length = tc->full_output_vector->occupied_elements;
-                printf("Length: %d\n", q->length);
+                //printf("Length: %d\n", q->length);
                 if(gc->bytes_to_read != 0)
                 {                    
                     tc = grab_another_block(gc, tc);
@@ -328,7 +328,7 @@ ulg deflate(global_context* gc)
         first_pass = 0;
         if(gc->processed_blocks->head != NULL)
         {
-            printf("%d : %d\n", gc->processed_blocks->head->index, gc->next_block_to_output);
+            //printf("%d : %d\n", gc->processed_blocks->head->index, gc->next_block_to_output);
             while(gc->processed_blocks->head->index == gc->next_block_to_output)
             {
                 if(gc->last_block_number == gc->processed_blocks->head->index) { quit_flag = 1; }
@@ -379,7 +379,7 @@ ulg deflate(global_context* gc)
  */
 void* deflate_work(void* arg)
 {
-    printf("Started Deflate Work\n");
+    //printf("Started Deflate Work\n");
     thread_context* tc = (thread_context*)arg;
     IPos hash_head = 0;          /* head of hash chain */
     IPos prev_match;         /* previous match */
@@ -479,12 +479,12 @@ void* deflate_work(void* arg)
     }
     if(match_available) ct_tally (0, tc->window[tc->strstart-1], tc);
 
-    printf("Last Block: %d", tc->last_block);
+    //printf("Last Block: %d", tc->last_block);
     if(tc->last_block) FLUSH_BLOCK(1); /* eof */
     else FLUSH_BLOCK(0);
     flush_outbuf(tc);
 
-    printf("Completeing Deflate Work");	
+    //printf("Completeing Deflate Work");	
     return NULL;
 }
 

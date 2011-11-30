@@ -190,7 +190,7 @@ void ct_init(ush* attr, int* methodp, thread_context* tc)
         tc->static_dtree[n].Code = bi_reverse(n, 5);
     }
 
-    printf("About to Init Block!\n");
+    //printf("About to Init Block!\n");
     /* Initialize the first block of the first file: */
     init_block(tc);
 }
@@ -201,17 +201,17 @@ void init_block(thread_context* tc)
 
     /* Initialize the trees. */
     for (n = 0; n < L_CODES;  n++) tc->dyn_ltree[n].Freq = 0;
-    printf("\tFinished init Block\n");
+    //printf("\tFinished init Block\n");
     for (n = 0; n < D_CODES;  n++) tc->dyn_dtree[n].Freq = 0;
-    printf("\tFinished init Block\n");
+    //printf("\tFinished init Block\n");
     for (n = 0; n < BL_CODES; n++) tc->bl_tree[n].Freq = 0;
-    printf("\tFinished init Block\n");
+    //printf("\tFinished init Block\n");
 
     tc->dyn_ltree[END_BLOCK].Freq = 1;
     tc->opt_len = tc->static_len = 0L;
     tc->last_lit = tc->last_dist = tc->last_flags = 0;
     tc->flags = 0; tc->flag_bit = 1;
-    printf("\tFinished init Block\n");
+    //printf("\tFinished init Block\n");
 }
 
 void pqdownheap(ct_data* tree, int k, thread_context* tc)
@@ -299,7 +299,7 @@ void gen_bitlen(tree_desc* desc, thread_context* tc)
         n = tc->bl_count[bits];
         while (n != 0) {
             m = tc->heap[--h];
-            printf("M: %d\n", m);
+            //printf("M: %d\n", m);
             if (m > max_code) continue;
             if (tree[m].Len != (unsigned) bits) {
                 Trace((stderr,"code %d bits %d->%d\n", m, tree[m].Len, bits));
@@ -373,7 +373,7 @@ void build_tree(tree_desc* desc, thread_context* tc)
      */
     while (tc->heap_len < 2) {
         int new = tc->heap[++(tc->heap_len)] = (max_code < 2 ? ++max_code : 0);
-        printf("New: %d\n", new);
+        //printf("New: %d\n", new);
         tree[new].Freq = 1;
         tc->depth[new] = 0;
         tc->opt_len--; if (stree) tc->static_len -= stree[new].Len;
@@ -598,7 +598,7 @@ ulg flush_block(char* buf, ulg stored_len, int eof, thread_context* tc)
 #endif
         /* Since LIT_BUFSIZE <= 2*WSIZE, the input data must be there: */
         if (buf == (char*)0) error ("block vanished");
-        printf("Hello World 1!\n");
+        //printf("Hello World 1!\n");
         copy_block(buf, (unsigned)stored_len, 0, tc); /* without header */
         tc->compressed_len = stored_len << 3;
         *(tc->file_method) = STORED;
@@ -618,7 +618,7 @@ ulg flush_block(char* buf, ulg stored_len, int eof, thread_context* tc)
         send_bits((STORED_BLOCK<<1)+eof, 3, tc);  /* send block type */
         tc->compressed_len = (tc->compressed_len + 3 + 7) & ~7L;
         tc->compressed_len += (stored_len + 4) << 3;
-        printf("Hello World!\n");
+        //printf("Hello World!\n");
         copy_block(buf, (unsigned)stored_len, 1, tc); /* with header */
 
 #ifdef FORCE_METHOD
@@ -630,7 +630,7 @@ ulg flush_block(char* buf, ulg stored_len, int eof, thread_context* tc)
         compress_block((ct_data *)(tc->static_ltree), (ct_data *)(tc->static_dtree), tc);
         tc->compressed_len += 3 + tc->static_len;
     } else {
-        printf("Send 3\n");
+        //printf("Send 3\n");
         send_bits((DYN_TREES<<1)+eof, 3, tc);
         send_all_trees(tc->l_desc.max_code+1, tc->d_desc.max_code+1, max_blindex+1, tc);
         compress_block((ct_data *)(tc->dyn_ltree), (ct_data *)(tc->dyn_dtree), tc);
@@ -641,7 +641,7 @@ ulg flush_block(char* buf, ulg stored_len, int eof, thread_context* tc)
 
     if (eof) {
         //Assert (tc->input_len == isize, "bad input size");
-        printf("Windup!\n");
+        //printf("Windup!\n");
         bi_windup(tc);
         tc->compressed_len += 7;  /* align on byte boundary */
     }

@@ -294,14 +294,14 @@ void* do_work(void* arg)
 
 void dispatch(threadpool* pl, void* (*dispatch_to_here) (void*), void *arg)
 {
-    printf("Hello Wordl!");
+    //printf("Hello Wordl!");
     work_t* wrk = (work_t*) malloc(sizeof(work_t));
     wrk->arg = arg; wrk->routine = dispatch_to_here;
     pthread_mutex_lock(&(pl->pending_job_requests_lock));
     enqueue(pl->pending_job_requests, wrk);
     pthread_mutex_unlock(&(pl->pending_job_requests_lock));
     pthread_cond_signal(&(pl->pending_job_requests_cond));
-    printf("Done!\n");
+    //printf("Done!\n");
 }
 
 

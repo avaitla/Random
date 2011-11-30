@@ -1,1 +1,11 @@
 Parallel Implementation of Gzip using Pthreads. Only Supports Compression.
+
+
+Usage: Download this Repo, then simply run make.
+
+Now you can do:
+
+./pgzip file_to_be_compressed 
+
+Eventually we will allow you to specify the number of threads and chunk size as command line argument.
+Defaults are 6 threads chunking at 200 mb.
