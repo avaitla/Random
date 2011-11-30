@@ -253,6 +253,7 @@ void* io_out_function(void* arg)
 
 ulg deflate(global_context* gc)
 {
+    
     pthread_t io_out_thread;
     pthread_create(&io_out_thread, NULL, io_out_function, (void*)gc);
     int i; int first_pass = 0; int quit_flag = 0;
