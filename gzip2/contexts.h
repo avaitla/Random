@@ -134,7 +134,6 @@ typedef ush Pos;
 
 
 
-
 // Structures
 
  typedef struct config {

@@ -23,7 +23,6 @@ void destroy_vector(vector* vec);
 /*      Queue Types and Interfaces                                     */
 /***********************************************************************/
 
-
 typedef struct _queue_node
 {
 	struct _queue_node* next;

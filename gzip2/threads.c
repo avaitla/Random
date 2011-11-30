@@ -258,7 +258,6 @@ threadpool* create_threadpool(unsigned int num_threads_in_pool)
     }
   
     return pool;
-    
 }
 
 

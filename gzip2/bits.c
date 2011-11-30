@@ -64,7 +64,6 @@ void send_bits(int value, int length, thread_context* tc)
         tc->bi_buf |= value << tc->bi_valid;
         tc->bi_valid += length;
     }
-    
 }
 
 unsigned bi_reverse(unsigned code, int len)

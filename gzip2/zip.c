@@ -76,7 +76,6 @@ int zip(global_context* gc)
     headerbuffer[6] = (char)(time_stamp >> 16);
     headerbuffer[7] = (char)(time_stamp >> 24);
 
-
     /* Write deflated file to zip file */
     gc->crc = updcrc(0, 0); gc->blocks_read = 0;
     gc->pool = create_threadpool(gc->number_of_threads);

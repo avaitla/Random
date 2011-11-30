@@ -107,7 +107,6 @@ int fill_inbuf(int eof_ok, thread_context* tc)
     tc->inptr = 1; return tc->inbuf[0];
 }
 
-
 void flush_outbuf(thread_context* tc)
 {
     if (tc->outcnt == 0) return;
