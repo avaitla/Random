@@ -49,7 +49,7 @@ void bi_init(thread_context* tc)
 
 void send_bits(int value, int length, thread_context* tc)
 {
-    tc->bits_sent += (long)length;
+    tc->bits_sent += (unsigned long)length;
     
     /* If not enough room in bi_buf, use (valid) bits from bi_buf and
      * (16 - bi_valid) bits from value, leaving (width - (16-bi_valid))
@@ -79,7 +79,7 @@ unsigned bi_reverse(unsigned code, int len)
 void bi_windup(thread_context* tc)
 {
     if (tc->bi_valid > 8) { put_short(tc->bi_buf); }
-    else if (tc->bi_valid > 0) { put_byte(tc->bi_buf); }
+    else { put_byte(tc->bi_buf); }
     tc->bi_buf = 0; tc->bi_valid = 0;
     tc->bits_sent = (tc->bits_sent + 7) & ~7;
 }

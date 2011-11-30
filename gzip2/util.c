@@ -85,39 +85,33 @@ void clear_bufs(thread_context* tc)
 
 int fill_inbuf(int eof_ok, thread_context* tc)
 {
-    unsigned int len;
+    int len;
 
     /* Read as much as possible */
     tc->insize = 0;
     do
     {
-        if(tc->full_input_buffer_remaining_bytes > INBUFSIZ - tc->insize) len = INBUFSIZ - tc->insize;
-        else len = tc->full_input_buffer_remaining_bytes;
+        if(tc->full_input_buffer_remaining_bytes > (unsigned long)(INBUFSIZ - (tc->insize))) len = INBUFSIZ - tc->insize;
+        else len = (unsigned int)tc->full_input_buffer_remaining_bytes;
          
-	    memcpy((char*)tc->inbuf + tc->insize, tc->full_input_buffer + tc->full_input_buffer_bytes_read, len);
+	    memcpy((char*)(tc->inbuf + tc->insize), tc->full_input_buffer + tc->full_input_buffer_bytes_read, len);
         tc->full_input_buffer_bytes_read += len;
         tc->full_input_buffer_remaining_bytes -= len;
 
-        if (len == 0) break;
+        if (len == 0 || len == EOF) break;
 	    tc->insize += len;
     } while (tc->insize < INBUFSIZ);
 
-    if(tc->insize == 0)
-    {
-        if (eof_ok) return EOF;
-        errno = 0;
-        read_error();
-    }
-    
-    tc->bytes_in += (long)(tc->insize);
+    if(tc->insize == 0) { if (eof_ok) return EOF; read_error(); }
+    tc->bytes_in += (ulg)(tc->insize);
     tc->inptr = 1; return tc->inbuf[0];
 }
 
 void flush_outbuf(thread_context* tc)
 {
     if (tc->outcnt == 0) return;
-    memcpy_safe(tc->full_output_vector, (void*) tc->outbuf, tc->outcnt); 
-    tc->bytes_out += (long)(tc->outcnt);
+    memcpy_safe(tc->full_output_vector, (char*) tc->outbuf, tc->outcnt); 
+    tc->bytes_out += (ulg)(tc->outcnt);
     tc->outcnt = 0;
 }
 

@@ -105,7 +105,6 @@ int zip(global_context* gc)
     printf("Starting Deflation\n");
     (void)deflate(gc);
     printf("Completed Deflation\n");
-    
 
     /* Write the crc and uncompressed size */
     headerbuffer[i] = (char)(gc->crc);
@@ -152,7 +151,6 @@ unsigned int file_read(char *buf, unsigned int size, global_context* gc)
     }
         
     gc->crc = updcrc((uch*)buf, total_bytes_read);
-    printf("Total_Bytes_Read: %d + CRC: %lu", total_bytes_read, gc->crc);
     gc->bytes_in += (unsigned long long int)size;
     printf("Total Size: %llu\n", gc->bytes_in);
     return size;
