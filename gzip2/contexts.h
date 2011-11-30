@@ -270,7 +270,7 @@ typedef struct thread_context
     unsigned int full_input_buffer_bytes_read;
     
     // deflate.c
-    int attr;
+    ush attr;
     int method;
     ush deflate_flags;
     char* full_input_buffer;
@@ -282,9 +282,9 @@ typedef struct thread_context
     uin lookahead;
     uin strstart;          /* window offset of current string */
     unsigned int prev_length;
-    unsigned match_start;       /* window offset of current string */
+    unsigned int match_start;       /* window offset of current string */
     unsigned int max_lazy_match;
-    uch* window;    /* Sliding window and suffix table (unlzw) */
+    uch window[2L*WSIZE];    /* Sliding window and suffix table (unlzw) */
     long block_start;
     int           eofile;        /* flag set at end of input file */
     unsigned good_match;
@@ -297,7 +297,7 @@ typedef struct thread_context
     unsigned ins_h;
     
     // trees.c
-    int* file_type;
+    ush* file_type;
     int* file_method;
     unsigned int compressed_len;
     unsigned int input_len;
@@ -316,17 +316,17 @@ typedef struct thread_context
     unsigned last_lit;    /* running index in l_buf */
     unsigned last_dist;   /* running index in d_buf */
     unsigned last_flags;  /* running index in flag_buf */
-    uch flags;            /* current flags not yet saved in flag_buf */
+    ush flags;            /* current flags not yet saved in flag_buf */
     uch flag_bit;         /* current bit used in flags */
     uch flag_buf[(LIT_BUFSIZE/8)];
     int heap_len;               /* number of elements in the heap */
     int heap[2*L_CODES+1]; /* heap used to build the Huffman trees */
     int heap_max;               /* element of largest frequency */
-    tree_desc l_desc;// = {dyn_ltree, static_ltree, extra_lbits, LITERALS+1, L_CODES, MAX_BITS, 0};
+    tree_desc l_desc;
     tree_desc d_desc;
     tree_desc bl_desc;
-    uch* inbuf;     /* input buffer */
-    ush* d_buf;     /* buffer for distances, see trees.c */
+    uch inbuf[INBUFSIZ + INBUF_EXTRA];     /* input buffer */
+    ush d_buf[DIST_BUFSIZE];     /* buffer for distances, see trees.c */
     uch depth[2*L_CODES+1];
     
     // util.c
@@ -340,7 +340,7 @@ typedef struct thread_context
     unsigned short bi_buf;
     int bi_valid;
     unsigned long bits_sent;
-    unsigned char* outbuf;
+    unsigned char outbuf[OUTBUFSIZ+OUTBUF_EXTRA];
         
 } thread_context;
 
@@ -383,7 +383,7 @@ thread_context* new_thread_context(global_context* gc);
 thread_context* clean_old_thread_context(global_context* gc, thread_context* tc);
 
 // trees.c
-extern void ct_init(int* attr, int* methodp, thread_context* tc);
+extern void ct_init(ush* attr, int* methodp, thread_context* tc);
 extern void init_block     (thread_context* tc);
 extern void pqdownheap     (ct_data *tree, int k, thread_context* tc);
 extern void gen_bitlen     (tree_desc *desc, thread_context* tc);
