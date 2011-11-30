@@ -18,7 +18,7 @@ vector* init_vector(unsigned int num_elements, unsigned int element_size)
     return v;
 }
 
-void memcpy_safe(vector* vec, void* memory, int number_of_elements)
+void memcpy_safe(vector* vec, void* memory, unsigned int number_of_elements)
 {
     unsigned int free_elements = vec->total_elements - vec->occupied_elements;
     if(number_of_elements > free_elements)
@@ -35,7 +35,7 @@ void memcpy_safe(vector* vec, void* memory, int number_of_elements)
         }
     }
 
-    memcpy(vec->elements + (vec->occupied_elements * vec->element_size), memory, vec->element_size * number_of_elements);
+    memcpy(((char*)vec->elements) + (vec->occupied_elements * vec->element_size), memory, vec->element_size * number_of_elements);
     vec->occupied_elements += number_of_elements;
 }
 
@@ -225,7 +225,7 @@ spec_thread* new_spec_thread(int thread_id, threadpool* p)
     spec_thread* c = (spec_thread*) malloc(sizeof(spec_thread));
     pthread_mutex_init(&c->thread_lock, NULL);
     pthread_cond_init(&c->thread_cond, NULL);
-    c->pool = p; c->work = NULL;
+    c->pool = p; c->work = NULL; c->busy = 0;
     c->shutdown = 0; c->thread_id = thread_id; 
     pthread_create(&c->thread, NULL, do_work, c);
     return c;
@@ -268,19 +268,20 @@ void* do_work(void* arg)
     while(1)
     {
 		pthread_mutex_lock(&(c->thread_lock));
-        while(c->shutdown == 0 && c->work == NULL)
+        while((c->shutdown == 0 && c->work == NULL) || (c->busy == 0))
             pthread_cond_wait(&(c->thread_cond),&(c->thread_lock));
 
 	    if(c->shutdown)
         { pthread_mutex_unlock(&(c->thread_lock)); pthread_exit(NULL); }
         
         work_t* job = (work_t*) c->work;
-        (job->routine) (job->arg); free(job);
+        (job->routine) (job->arg); //free(job);
         
         pthread_mutex_lock(&(c->pool->completed_threads_lock));
         enqueue(c->pool->completed_threads, &(c->thread_id));
         pthread_mutex_unlock(&(c->pool->completed_threads_lock));
         
+        c->busy = 0;
         pthread_mutex_unlock(&(c->thread_lock));
         pthread_cond_signal(&(c->pool->pending_job_requests_cond));
     }

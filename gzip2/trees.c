@@ -121,7 +121,7 @@
 
 
 
-void ct_init(int* attr, int* methodp, thread_context* tc)
+void ct_init(ush* attr, int* methodp, thread_context* tc)
 {
     int n;        /* iterates over tree elements */
     int bits;     /* bit counter */
@@ -598,7 +598,7 @@ ulg flush_block(char* buf, ulg stored_len, int eof, thread_context* tc)
 #endif
         /* Since LIT_BUFSIZE <= 2*WSIZE, the input data must be there: */
         if (buf == (char*)0) error ("block vanished");
-
+        printf("Hello World 1!\n");
         copy_block(buf, (unsigned)stored_len, 0, tc); /* without header */
         tc->compressed_len = stored_len << 3;
         *(tc->file_method) = STORED;
@@ -618,7 +618,7 @@ ulg flush_block(char* buf, ulg stored_len, int eof, thread_context* tc)
         send_bits((STORED_BLOCK<<1)+eof, 3, tc);  /* send block type */
         tc->compressed_len = (tc->compressed_len + 3 + 7) & ~7L;
         tc->compressed_len += (stored_len + 4) << 3;
-
+        printf("Hello World!\n");
         copy_block(buf, (unsigned)stored_len, 1, tc); /* with header */
 
 #ifdef FORCE_METHOD
@@ -630,6 +630,7 @@ ulg flush_block(char* buf, ulg stored_len, int eof, thread_context* tc)
         compress_block((ct_data *)(tc->static_ltree), (ct_data *)(tc->static_dtree), tc);
         tc->compressed_len += 3 + tc->static_len;
     } else {
+        printf("Send 3\n");
         send_bits((DYN_TREES<<1)+eof, 3, tc);
         send_all_trees(tc->l_desc.max_code+1, tc->d_desc.max_code+1, max_blindex+1, tc);
         compress_block((ct_data *)(tc->dyn_ltree), (ct_data *)(tc->dyn_dtree), tc);
@@ -640,6 +641,7 @@ ulg flush_block(char* buf, ulg stored_len, int eof, thread_context* tc)
 
     if (eof) {
         //Assert (tc->input_len == isize, "bad input size");
+        printf("Windup!\n");
         bi_windup(tc);
         tc->compressed_len += 7;  /* align on byte boundary */
     }

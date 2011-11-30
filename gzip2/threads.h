@@ -15,7 +15,7 @@ typedef struct vector
 } vector;
 
 vector* init_vector(unsigned int num_elements, unsigned int element_size);
-void memcpy_safe(vector* vec, void* memory, int number_of_elements);
+void memcpy_safe(vector* vec, void* memory, unsigned int number_of_elements);
 void destroy_vector(vector* vec);
 
 
@@ -109,6 +109,7 @@ typedef struct _threadpool_st {
 
 typedef struct _spec_thread
 {
+    int busy;
 	threadpool* pool;
 	int shutdown;
 	int	thread_id;
