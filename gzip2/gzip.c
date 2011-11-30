@@ -54,7 +54,7 @@ int create_outfile(global_context* gc)
 void treatfile(global_context* gc)
 {
     if (stat(gc->in_filepath, &(gc->istat)) != 0)
-    { printf("Could Not Stat File: %s\n", gc->in_filepath); return; }
+    { printf("Could Not Stat File: %s\n", gc->in_filepath); free(gc); abort_gzip(); }
 
     gc->ifile_size = (gc->istat).st_size;
     gc->bytes_to_read = gc->ifile_size;

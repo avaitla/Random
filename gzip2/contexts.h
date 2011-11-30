@@ -10,9 +10,10 @@
 
 typedef unsigned char  uch;
 typedef unsigned short ush;
+typedef unsigned int   uin;
 typedef unsigned long  ulg;
 
-typedef unsigned IPos;
+typedef uin IPos;
 typedef ush Pos;
 
 
@@ -35,7 +36,7 @@ typedef ush Pos;
 // deflate.c
 #define WSIZE       0x8000
 #define HASH_BITS   14
-#define HASH_SIZE   (unsigned)(1<<HASH_BITS)
+#define HASH_SIZE   (uin)(1<<HASH_BITS)
 #define HASH_MASK   (HASH_SIZE-1)
 #define WMASK       (WSIZE-1)
 #define NIL         0
@@ -47,13 +48,13 @@ typedef ush Pos;
 #define MIN_MATCH   3
 #define MAX_MATCH   258
 #define MAX_DIST    (WSIZE-MIN_LOOKAHEAD)
-#define FLUSH_BLOCK(eof) flush_block(tc->block_start >= 0L ? (char*)&(tc->window[(unsigned)(tc->block_start)]) : (char*)NULL, (long)(tc->strstart - tc->block_start), (eof), tc)
+#define FLUSH_BLOCK(eof) flush_block(tc->block_start >= 0L ? (char*)&(tc->window[(uin)(tc->block_start)]) : (char*)NULL, (long)tc->strstart - tc->block_start, (eof), tc)
 #define Assert(cond,msg) {if(!(cond)) error(msg);}
 #define check_match(start, match, length, tc)
 #define INSERT_STRING(s, match_head) \
    (UPDATE_HASH(tc->ins_h, tc->window[(s) + MIN_MATCH-1]), \
-    tc->prev[(s) & WMASK] = match_head = (tc->prev + WSIZE)[tc->ins_h], \
-    (tc->prev + WSIZE)[tc->ins_h] = (s))
+    tc->prev[(s) & WMASK] = match_head = tc->head[tc->ins_h], \
+    tc->head[tc->ins_h] = (s))
 #define UPDATE_HASH(h,c) (h = (((h)<<H_SHIFT) ^ (c)) & HASH_MASK)
 #define LIT_BUFSIZE  0x8000
 #define DIST_BUFSIZE 0x8000 /* buffer for distances, see trees.c */
@@ -278,8 +279,8 @@ typedef struct thread_context
     unsigned int full_output_buffer_length;
     unsigned int block_number;
     int last_block;
-    unsigned lookahead;
-    unsigned strstart;          /* window offset of current string */
+    uin lookahead;
+    uin strstart;          /* window offset of current string */
     unsigned int prev_length;
     unsigned match_start;       /* window offset of current string */
     unsigned int max_lazy_match;
@@ -290,6 +291,7 @@ typedef struct thread_context
     ulg window_size;
     int nice_match;
     ush prev[WSIZE];
+    ush head[(1<<HASH_BITS)];
     unsigned max_chain_length;
     int compr_level;
     unsigned ins_h;
@@ -364,8 +366,8 @@ extern int main(int argc, char **argv);
 
 // zip.c
 extern int zip(global_context* gc);
-int thread_read_buf(char *buf, unsigned int size, thread_context* tc); 
-extern int file_read(char *buf, unsigned long size, global_context* gc);
+extern unsigned int thread_read_buf(char *buf, unsigned int size, thread_context* tc); 
+extern unsigned int file_read(char *buf, unsigned int size, global_context* gc);
 
 // deflate.c
 extern void lm_init (int pack_level, ush* flags, thread_context* tc);
@@ -407,7 +409,7 @@ extern void warn(char* a, char *b);
 extern void read_error();
 extern void write_error();
 extern void write_buf(void* buf, unsigned cnt, thread_context* tc);
-extern ulg updcrc(uch *s, unsigned n);
+extern ulg updcrc(uch *s, unsigned int n);
 extern void clear_bufs(thread_context* tc);
 extern int fill_inbuf(int eof_ok, thread_context* tc);
 extern void flush_outbuf();

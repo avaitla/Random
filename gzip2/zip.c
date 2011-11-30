@@ -120,33 +120,38 @@ int zip(global_context* gc)
     return OK;
 }
 
-int thread_read_buf(char *buf, unsigned int size, thread_context* tc)
+unsigned int thread_read_buf(char *buf, unsigned int size, thread_context* tc)
 {
-    if(size < tc->full_input_buffer_remaining_bytes)
+    printf("Reading %u\n", size);
+    
+    if(size > tc->full_input_buffer_remaining_bytes)
     { size = tc->full_input_buffer_remaining_bytes; }
+
+    printf("Trying to Read %u Bytes from Buffer of Size %u\n", size, tc->full_input_buffer_remaining_bytes);
 
     tc->full_input_buffer_remaining_bytes -= size;
     memcpy(buf, tc->full_input_buffer + tc->full_input_buffer_bytes_read, size);
     tc->full_input_buffer_bytes_read += size;
-    return (int)size;
+    return size;
 }
 
 
-int file_read(char *buf, unsigned long size, global_context* gc)
+unsigned int file_read(char *buf, unsigned int size, global_context* gc)
 {
-    unsigned len;
-    unsigned long total_bytes_read = 0;
-    unsigned long total_bytes_left = size;
+    unsigned int len;
+    unsigned int total_bytes_read = 0;
+    unsigned int total_bytes_left = size;
 
     while(total_bytes_left != 0)
     {
         len = read(gc->ifd, buf + total_bytes_read, total_bytes_left);
-        if (len == (unsigned)(-1)) error("read error");
+        if (len == (uin)(-1)) error("read error");
         total_bytes_left -= len;
         total_bytes_read += len;
     }
         
     gc->crc = updcrc((uch*)buf, total_bytes_read);
     gc->bytes_in += (unsigned long long int)size;
-    return (int)size;
+    printf("Total Size: %llu\n", gc->bytes_in);
+    return size;
 }

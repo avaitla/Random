@@ -159,6 +159,31 @@ thread_context* grab_another_block(global_context* gc, thread_context* tc)
     gc->block_number += 1;
     gc->blocks_read += 1;
     
+    tc->l_desc.dyn_tree = tc->dyn_ltree;
+    tc->l_desc.static_tree = tc->static_ltree;
+    tc->l_desc.extra_bits = extra_lbits;
+    tc->l_desc.extra_base = LITERALS+1;
+    tc->l_desc.elems = L_CODES;
+    tc->l_desc.max_length = MAX_BITS;
+    tc->l_desc.max_code = 0;
+    
+    tc->d_desc.dyn_tree = tc->dyn_dtree;
+    tc->d_desc.static_tree = tc->static_dtree;
+    tc->d_desc.extra_bits = extra_dbits;
+    tc->d_desc.extra_base = 0;
+    tc->d_desc.elems = D_CODES;
+    tc->d_desc.max_length = MAX_BITS;
+    tc->d_desc.max_code = 0;
+    
+    tc->bl_desc.dyn_tree = tc->bl_tree;
+    tc->bl_desc.static_tree = (ct_data*) 0;
+    tc->bl_desc.extra_bits = extra_blbits;
+    tc->bl_desc.extra_base = 0;
+    tc->bl_desc.elems = BL_CODES;
+    tc->bl_desc.max_length = MAX_BITS;
+    tc->bl_desc.max_code = 0;
+    
+
     if(gc->bytes_to_read > gc->block_chunk_size)
     {
         tc->full_input_buffer_size = gc->block_chunk_size;
@@ -275,6 +300,7 @@ ulg deflate(global_context* gc)
             pthread_mutex_lock(&(gc->pool->completed_threads_lock));
             while(!queue_empty(gc->pool->completed_threads))
             {
+                printf("Grabbed A completed Block\n");
                 int* i = (int*) dequeue(gc->pool->completed_threads);
                 spec_thread* s = (spec_thread*) (gc->pool->busy_threads + (*i));
                 thread_context* tc = (thread_context*) (((work_t*) s->work)->arg);
@@ -356,19 +382,24 @@ void* deflate_work(void* arg)
 {
     printf("Starting Deflate Work!\n");
     thread_context* tc = (thread_context*)arg;
-    IPos hash_head;          /* head of hash chain */
+    IPos hash_head = 0;          /* head of hash chain */
     IPos prev_match;         /* previous match */
     int flush;               /* set if current block must be flushed */
     int match_available = 0; /* set if previous match exists */
     register unsigned match_length = MIN_MATCH-1; /* length of best match */
     thread_context_init(tc);
-    
+
+    printf("Lookahead: %d\n", tc->lookahead);
     /* Process the input block. */
     while (tc->lookahead != 0) {
         /* Insert the string window[strstart .. strstart+2] in the
          * dictionary, and set hash_head to the head of the hash chain:
          */
+
+         
+        printf("Lookahead: %d\n", tc->lookahead);
         INSERT_STRING(tc->strstart, hash_head);
+
 
         /* Find the longest match, discarding those <= prev_length.
          */
@@ -396,6 +427,7 @@ void* deflate_work(void* arg)
         /* If there was a match at the previous step and the current
          * match is not better, output the previous match:
          */
+        //abort_gzip();
         if (tc->prev_length >= MIN_MATCH && match_length <= tc->prev_length) {
 
             check_match(tc->strstart-1, prev_match, tc->prev_length, tc);
@@ -483,7 +515,7 @@ int longest_match(IPos cur_match, thread_context* tc)
  */
 
 
-    register uch *strend = tc->window + tc->strstart + MAX_MATCH - 1;
+    register uch *strend = (uch*)(tc->window + tc->strstart + (uin)MAX_MATCH - 1);
     register ush scan_start = *(ush*)scan;
     register ush scan_end   = *(ush*)(scan+best_len-1);
 
@@ -499,7 +531,6 @@ int longest_match(IPos cur_match, thread_context* tc)
          * or if the match length is less than 2:
          */
 
-#if (MAX_MATCH == 258)
         /* This code assumes sizeof(unsigned short) == 2. Do not use
          * UNALIGNED_OK if your compiler uses a different size.
          */
@@ -531,35 +562,6 @@ int longest_match(IPos cur_match, thread_context* tc)
         len = (MAX_MATCH - 1) - (int)(strend-scan);
         scan = strend - (MAX_MATCH-1);
 
-#else /* UNALIGNED_OK */
-
-        if (match[best_len]   != scan_end  ||
-            match[best_len-1] != scan_end1 ||
-            *match            != *scan     ||
-            *++match          != scan[1])      continue;
-
-        /* The check at best_len-1 can be removed because it will be made
-         * again later. (This heuristic is not always a win.)
-         * It is not necessary to compare scan[2] and match[2] since they
-         * are always equal when the other bytes match, given that
-         * the hash keys are equal and that HASH_BITS >= 8.
-         */
-        scan += 2, match++;
-
-        /* We check for insufficient lookahead only every 8th comparison;
-         * the 256th check will be made at strstart+258.
-         */
-        do {
-        } while (*++scan == *++match && *++scan == *++match &&
-                 *++scan == *++match && *++scan == *++match &&
-                 *++scan == *++match && *++scan == *++match &&
-                 *++scan == *++match && *++scan == *++match &&
-                 scan < strend);
-
-        len = MAX_MATCH - (int)(strend - scan);
-        scan = strend - MAX_MATCH;
-
-#endif /* UNALIGNED_OK */
 
         if (len > best_len) {
             tc->match_start = cur_match;
@@ -589,7 +591,7 @@ void lm_init (int pack_level, ush* flags, thread_context* tc)
 
 
     /* Initialize the hash table. */
-    for (j = 0;  j < HASH_SIZE; j++) (tc->prev + WSIZE)[j] = NIL;
+    for (j = 0;  j < HASH_SIZE; j++) tc->head[j] = NIL;
 
     /* Set the default configuration parameters:
      */
@@ -607,7 +609,7 @@ void lm_init (int pack_level, ush* flags, thread_context* tc)
     tc->strstart = 0;
     tc->block_start = 0L;
 
-    tc->lookahead = thread_read_buf((char*)(tc->window), sizeof(int) <= 2 ? (unsigned)WSIZE : 2*WSIZE, tc);
+    tc->lookahead = thread_read_buf((char*)(tc->window), 2*WSIZE, tc);
 
     if(tc->lookahead == 0 || tc->lookahead == (unsigned)EOF) {
        tc->eofile = 1, tc->lookahead = 0;
@@ -654,8 +656,8 @@ void fill_window(thread_context* tc)
         tc->block_start -= (long) WSIZE;
 
         for (n = 0; n < HASH_SIZE; n++) {
-            m = (tc->prev + WSIZE)[n];
-            (tc->prev + WSIZE)[n] = (Pos)(m >= WSIZE ? m-WSIZE : NIL);
+            m = tc->head[n];
+            tc->head[n] = (Pos)(m >= WSIZE ? m-WSIZE : NIL);
         }
         for (n = 0; n < WSIZE; n++) {
             m = tc->prev[n];
@@ -668,7 +670,9 @@ void fill_window(thread_context* tc)
     }
     /* At this point, more >= 2 */
     if (!tc->eofile) {
-        n = thread_read_buf((char*)(tc->window+tc->strstart+tc->lookahead), more, tc);
+        printf("Bytes Read\n");
+        n = thread_read_buf((char*)(tc->window + tc->strstart + tc->lookahead), more, tc);
+        printf("%d Bytes Read\n", n);
         if (n == 0 || n == (unsigned)EOF) {
             tc->eofile = 1;
         } else {

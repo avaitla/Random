@@ -299,6 +299,7 @@ void gen_bitlen(tree_desc* desc, thread_context* tc)
         n = tc->bl_count[bits];
         while (n != 0) {
             m = tc->heap[--h];
+            printf("M: %d\n", m);
             if (m > max_code) continue;
             if (tree[m].Len != (unsigned) bits) {
                 Trace((stderr,"code %d bits %d->%d\n", m, tree[m].Len, bits));
@@ -372,6 +373,7 @@ void build_tree(tree_desc* desc, thread_context* tc)
      */
     while (tc->heap_len < 2) {
         int new = tc->heap[++(tc->heap_len)] = (max_code < 2 ? ++max_code : 0);
+        printf("New: %d\n", new);
         tree[new].Freq = 1;
         tc->depth[new] = 0;
         tc->opt_len--; if (stree) tc->static_len -= stree[new].Len;
