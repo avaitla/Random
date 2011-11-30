@@ -565,6 +565,7 @@ ulg flush_block(char* buf, ulg stored_len, int eof, thread_context* tc)
     build_tree((tree_desc *)(&(tc->l_desc)), tc);
     //Tracev((stderr, "\nlit data: dyn %ld, stat %ld", opt_len, static_len));
 
+
     build_tree((tree_desc *)(&(tc->d_desc)), tc);
     //Tracev((stderr, "\ndist data: dyn %ld, stat %ld", opt_len, static_len));
     /* At this point, opt_len and static_len are the total bit lengths of
