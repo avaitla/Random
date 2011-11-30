@@ -245,6 +245,8 @@ void* io_out_function(void* arg)
 
             //free(data->buffer); free(data);
         }
+        
+        if(gc->kill_output_io_thread == 1) { break; }
     }
 }
 
@@ -270,64 +272,63 @@ ulg deflate(global_context* gc)
 
     printf("Done Dispatching Initial Batches\n");
     queue* temp = initialize_queue();
-    //while(1)
-    //{
-    //    printf("Entered While Loop\n");
-    //    pthread_mutex_lock(&(gc->pool->pending_job_requests_lock));
-    //    while(queue_empty(gc->pool->pending_job_requests) && queue_empty(gc->pool->completed_threads))
-    //        pthread_cond_wait(&(gc->pool->pending_job_requests_cond), &(gc->pool->pending_job_requests_lock));
+    while(1)
+    {
+        printf("Entered While Loop\n");
+        pthread_mutex_lock(&(gc->pool->pending_job_requests_lock));
+        while(queue_empty(gc->pool->pending_job_requests) && queue_empty(gc->pool->completed_threads))
+            pthread_cond_wait(&(gc->pool->pending_job_requests_cond), &(gc->pool->pending_job_requests_lock));
             
-    //    printf("Got Lock!\n");
-    //    while(!queue_empty(gc->pool->pending_job_requests) && !queue_empty(gc->pool->free_threads))
-    //    {
+        printf("Got Lock!\n");
+        while(!queue_empty(gc->pool->pending_job_requests) && !queue_empty(gc->pool->free_threads))
+        {
             spec_thread* th = dequeue(gc->pool->free_threads);
             work_t* work = dequeue(gc->pool->pending_job_requests);
             pthread_mutex_lock(&th->thread_lock);
             th->work = (void*) work; th->busy = 1;
             spec_thread* p = ((spec_thread*) gc->pool->busy_threads);
-            //p[th->thread_id] = *th;
+            p[th->thread_id] = *th;
             pthread_mutex_unlock(&th->thread_lock);
             pthread_cond_signal(&th->thread_cond);
-    //    }
+        }
         
-    //    pthread_mutex_unlock(&(gc->pool->pending_job_requests_lock));
-    //    printf("Freed Lock\n");
+        pthread_mutex_unlock(&(gc->pool->pending_job_requests_lock));
+        printf("Freed Lock\n");
 
-            sleep(5);
-    //    if(!queue_empty(gc->pool->completed_threads))
-    //    {
-            //pthread_mutex_lock(&(gc->pool->completed_threads_lock));
-            //while(!queue_empty(gc->pool->completed_threads))
-            //{
-            //    printf("Grabbed A completed Block\n");
-                //int* it = (int*) dequeue(gc->pool->completed_threads);
-            //    spec_thread* s = (spec_thread*) (gc->pool->busy_threads + (*i));
+        if(!queue_empty(gc->pool->completed_threads))
+        {
+            pthread_mutex_lock(&(gc->pool->completed_threads_lock));
+            while(!queue_empty(gc->pool->completed_threads))
+            {
+                printf("Grabbed A completed Block\n");
+                int* it = (int*) dequeue(gc->pool->completed_threads);
+                spec_thread* s = (spec_thread*) (gc->pool->busy_threads + (*it));
+                work_t* work = (work_t*) s->work;
                 thread_context* tc = (thread_context*) (work->arg);
                 
                 quick_data* q = (quick_data*) malloc(sizeof(quick_data));
                 q->buffer = (char*)malloc(tc->full_output_vector->total_elements);
-            //    memcpy(q->buffer, tc->full_output_vector->elements, tc->full_output_vector->occupied_elements);
+                memcpy(q->buffer, tc->full_output_vector->elements, tc->full_output_vector->occupied_elements * tc->full_output_vector->element_size);
                 q->length = tc->full_output_vector->occupied_elements;
                 printf("Length: %d\n", q->length);
-                write(gc->ofd, tc->outbuf, tc->outcnt);
-            //    printf("Checking: %llu\n", gc->bytes_to_read);
-            //    if(gc->bytes_to_read != 0)
-            //    {                    
-                    //tc = grab_another_block(gc, tc);
-                    //dispatch(gc->pool, deflate_work, (void*)tc);
-            //    }
-            //    else { gc->pool->shutdown = 1; }
+                if(gc->bytes_to_read != 0)
+                {                    
+                    tc = grab_another_block(gc, tc);
+                    dispatch(gc->pool, deflate_work, (void*)tc);
+                }
+                else { gc->pool->shutdown = 1; }
                 
-            //    insert_into_sorted_linked_list(gc->processed_blocks, tc->block_number, (void*)q);
-            //    enqueue(gc->pool->free_threads, s);
-            //}
-            //pthread_mutex_unlock(&(gc->pool->completed_threads_lock));
-    //    }
+                insert_into_sorted_linked_list(gc->processed_blocks, tc->block_number, (void*)q);
+                enqueue(gc->pool->free_threads, s);
+            }
+            pthread_mutex_unlock(&(gc->pool->completed_threads_lock));
+        }
     
         
-    /*    first_pass = 0;
+        first_pass = 0;
         if(gc->processed_blocks->head != NULL)
         {
+            printf("%d : %d\n", gc->processed_blocks->head->index, gc->next_block_to_output);
             while(gc->processed_blocks->head->index == gc->next_block_to_output)
             {
                 if(gc->last_block_number == gc->processed_blocks->head->index) { quit_flag = 1; }
@@ -343,16 +344,13 @@ ulg deflate(global_context* gc)
             }
         }
         
-        printf("Checking Shutdown\n");
-        if(gc->pool->shutdown == 1)
-        { break; printf("Shutting Down!\n"); }
-    }*/
+        if(gc->pool->shutdown == 1 && gc->pool->free_threads->size == gc->number_of_threads) break;
+    }
 
-	//void* status;
-    //destroy_threadpool(gc->pool);
-	//gc->kill_output_io_thread = 1;
-	//pthread_cond_signal(&(gc->more_io_output));
-	//pthread_join(io_out_thread, &status);
+	void* status;
+	gc->kill_output_io_thread = 1;
+	pthread_cond_signal(&(gc->more_io_output));
+	pthread_join(io_out_thread, &status);
 }
 
 
@@ -484,10 +482,10 @@ void* deflate_work(void* arg)
     printf("Last Block: %d", tc->last_block);
     if(tc->last_block) FLUSH_BLOCK(1); /* eof */
     else FLUSH_BLOCK(0);
-    //flush_outbuf(tc);
-	
+    flush_outbuf(tc);
+
+    printf("Completeing Deflate Work");	
     return NULL;
-    printf("Completeing Deflate Work");
 }
 
 

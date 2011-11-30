@@ -35,7 +35,7 @@ void memcpy_safe(vector* vec, void* memory, unsigned int number_of_elements)
         }
     }
 
-    memcpy(((char*)vec->elements) + (vec->occupied_elements * vec->element_size), memory, vec->element_size * number_of_elements);
+    memcpy(((char*)vec->elements) + (vec->occupied_elements * vec->element_size), (char*)memory, vec->element_size * number_of_elements);
     vec->occupied_elements += number_of_elements;
 }
 
@@ -71,6 +71,7 @@ void enqueue(queue* q, void* object)
 		q->last = node;
 	}
 	
+    q->size += 1;
 	node->next = NULL;
 }
 
@@ -87,6 +88,7 @@ void* dequeue(queue* q)
 	{ q->first = NULL; q->last = NULL; }
 	else{ q->first = (q->first)->next; }
 	free(temp); temp = NULL;
+    q->size -= 1;
 	return pointer;	
 }
 
@@ -95,6 +97,7 @@ queue* initialize_queue()
     queue* q = (queue *) malloc(sizeof(queue));
 	q->first = NULL;
 	q->last = NULL;
+    q->size = 0;
     return q;
 }
 
@@ -259,7 +262,6 @@ threadpool* create_threadpool(unsigned int num_threads_in_pool)
   
     return pool;
 }
-
 
 /* This function is the work function of the thread */
 void* do_work(void* arg)

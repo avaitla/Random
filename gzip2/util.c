@@ -116,7 +116,9 @@ int fill_inbuf(int eof_ok, thread_context* tc)
 void flush_outbuf(thread_context* tc)
 {
     if (tc->outcnt == 0) return;
+    printf("Outbuf Value %x\n", *tc->outbuf);
     memcpy_safe(tc->full_output_vector, (void*) tc->outbuf, tc->outcnt); 
+    printf("Vector Value %x\n", *((char*) tc->full_output_vector->elements));
     tc->bytes_out += (long)(tc->outcnt);
     tc->outcnt = 0;
 }

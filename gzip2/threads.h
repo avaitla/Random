@@ -34,6 +34,7 @@ typedef struct _queue
 {
 	queue_node* first;
 	queue_node* last;
+    int size;
 } queue;
 
 void enqueue(queue *q, void* object);
