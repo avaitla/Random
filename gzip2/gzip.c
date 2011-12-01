@@ -6,6 +6,13 @@
 #include <fcntl.h>
 #include "contexts.h"
 
+char help_msg[] = 
+"Usage: pgzip <input file> [FLAGS] \n \
+  Flags can be: \n \
+  -b <block size (bytes)> \n \
+  -f (if output .gz file exists, force overwrite) \n \
+  -t <# threads> \n";
+					
 // Global Context Variables Directly Used / Managed
 //      int  ofd - output file descriptor
 //      char* out_filepath - full path of output file
@@ -74,13 +81,12 @@ void treatfile(global_context* gc)
 
 int main(int argc, char **argv)
 {
-    if(argc < 2) { printf("First Argument must be the Filename\n"); return -1; }
+    if(argc < 2) { printf("%s",help_msg); return -1; }
  
     global_context* gc = (global_context*) malloc(sizeof(global_context)); gc->decompress = 0;
     
     gc->block_chunk_size = 100000;
     gc->number_of_threads = sysconf(_SC_NPROCESSORS_ONLN); 
-	printf("%d\n",gc->number_of_threads);
 /* Parse command line args */
 	int i = 2;
 	int canOverwriteOldOutput = 0; 
@@ -132,7 +138,7 @@ int main(int argc, char **argv)
 		exit(0);
 		fclose(fp);
 		remove(gc->out_filepath);
-	}	else {
+	}	else if (fp) {
 		char responseBuf[4];
 		printf("Output file already exists. Overwrite? (y/n)\n");
 		scanf("%s",responseBuf);
