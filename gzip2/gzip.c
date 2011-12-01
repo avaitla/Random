@@ -74,19 +74,41 @@ void treatfile(global_context* gc)
 
 int main(int argc, char **argv)
 {
-    if(argc < 2) { printf("First Argument must be the Filename"); return -1; }
+    if(argc < 2) { printf("First Argument must be the Filename\n"); return -1; }
  
     global_context* gc = (global_context*) malloc(sizeof(global_context)); gc->decompress = 0;
-    if(argc == 3)
-    { if(strcmp(argv[2], "decompress") == 0) { gc->decompress = 1; }
-      else { printf("Illegal Second Argument, Must be decompress\n"); free(gc); return -1; }
-      printf("Decompression Not Supported! Use standard GZIP.\n"); return 0;
-    }
-
+    
     gc->block_chunk_size = 100000;
-    gc->number_of_threads = 6; 
+    gc->number_of_threads = sysconf(_SC_NPROCESSORS_ONLN); 
+	printf("%d\n",gc->number_of_threads);
+/* Parse command line args */
+	int i = 2;
+	int canOverwriteOldOutput = 0; 
+	while (i < argc) {
+		if (strcmp(argv[i], "-f") == 0) {
+			printf("Forced overwriting enabled.\n");
+			canOverwriteOldOutput = 1;
+		}
 
+		if (strcmp(argv[i], "-b") == 0) {
+			i += 1;
+			sscanf(argv[i],"%ld",&gc->block_chunk_size);
+			printf("Chunk size: %ld bytes. \n", gc->block_chunk_size);
+		}
 
+		if (strcmp(argv[i], "-t") == 0) {
+			i += 1;
+			sscanf(argv[i],"%d",&gc->number_of_threads);
+			printf("Number of threads: %d\n",gc->number_of_threads);
+		}
+		if(strcmp(argv[i], "decompress") == 0) {
+		   	gc->decompress = 1; 
+			printf("Decompression Not Supported! Use standard GZIP.\n");	
+			free(gc); 
+			return 0;
+		}
+		i += 1;
+	}
 
     char cwd[1024]; memset(cwd, 0, 1024);
     if((char*)getcwd(cwd, sizeof(cwd)-1) == NULL)
@@ -103,7 +125,27 @@ int main(int argc, char **argv)
     memcpy(out_filepath, in_filepath, strlen(in_filepath));
     memcpy(out_filepath + strlen(in_filepath), ".gz\0", 4);
     gc->out_filepath = out_filepath;
-   
+	
+	FILE * fp = fopen(gc->out_filepath, "r");	
+	if (fp && canOverwriteOldOutput) {
+		printf("Old file exists, deleting it!\n");
+		exit(0);
+		fclose(fp);
+		remove(gc->out_filepath);
+	}	else {
+		char responseBuf[4];
+		printf("Output file already exists. Overwrite? (y/n)\n");
+		scanf("%s",responseBuf);
+		if (strcmp(responseBuf,"y") == 0) {
+			printf("Overwriting file...\n");
+			remove(gc->out_filepath);
+		}	else {
+			exit(0);
+		}	
+	}
+		
+
+	
     printf("Input Path: %s\n", gc->in_filepath);
     printf("Output Path: %s\n", gc->out_filepath);
     /* Now we Have the Input Path and Output Path */
