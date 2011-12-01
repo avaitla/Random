@@ -248,6 +248,7 @@ void* io_out_function(void* arg)
 	            if (n == (unsigned)-1) write_error();
                 remaining_bytes -= n; written_bytes += n;
 	        }
+            printf("Flushed a Block!\n");
 
             //free(data->buffer); free(data);
         }
@@ -280,54 +281,73 @@ ulg deflate(global_context* gc)
     queue* temp = initialize_queue();
     while(1)
     {
-        //printf("Entered While Loop\n");
+        printf("Entered While Loop\n");
         pthread_mutex_lock(&(gc->pool->pending_job_requests_lock));
         while(queue_empty(gc->pool->pending_job_requests) && queue_empty(gc->pool->completed_threads) && !(gc->pool->shutdown))
             pthread_cond_wait(&(gc->pool->pending_job_requests_cond), &(gc->pool->pending_job_requests_lock));
             
-        //printf("Got Lock!\n");
+        printf("Got Lock!\n");
         while(!queue_empty(gc->pool->pending_job_requests) && !queue_empty(gc->pool->free_threads))
         {
             spec_thread* th = dequeue(gc->pool->free_threads);
             work_t* work = dequeue(gc->pool->pending_job_requests);
+            printf("Thread dequeued as free thread %d\n", th->thread_id);
+            Assert(th->busy == 0, "Why is thread Busy?");
             pthread_mutex_lock(&th->thread_lock);
+            printf("Got internal lock!\n");
             th->work = (void*) work; th->busy = 1;
-            spec_thread* p = ((spec_thread*) gc->pool->busy_threads);
-            p[th->thread_id] = *th;
+            spec_thread** p = ((spec_thread**) gc->pool->busy_threads);
+            p[th->thread_id] = th;
             pthread_mutex_unlock(&th->thread_lock);
+            printf("Can I acquire Lock?\n");
             pthread_cond_signal(&th->thread_cond);
         }
         
         pthread_mutex_unlock(&(gc->pool->pending_job_requests_lock));
-        //printf("Freed Lock\n");
+        printf("Freed Lock\n");
 
         if(!queue_empty(gc->pool->completed_threads))
         {
             pthread_mutex_lock(&(gc->pool->completed_threads_lock));
             while(!queue_empty(gc->pool->completed_threads))
             {
-                //printf("Grabbed A completed Block\n");
+                printf("Grabbed A completed Block\n");
                 int* it = (int*) dequeue(gc->pool->completed_threads);
-                spec_thread* s = (spec_thread*) (gc->pool->busy_threads + (*it));
-                work_t* work = (work_t*) s->work;
-                if(work == NULL) { gc->pool->shutdown = 1; break; }
+                printf("Thread Number: %d", *it);
+                spec_thread** s = (spec_thread**) (gc->pool->busy_threads);
+                printf("Successful Cast\n");
+                spec_thread* mythread = (spec_thread*) s[*it];
+                printf("mythread->thread_id: %d\n", mythread->thread_id);
+                work_t* work = (work_t*) mythread->work;
+                //if(work == NULL) { gc->pool->shutdown = 1; printf("Null Work\n"); break; }
+                printf("Hi1\n");
                 thread_context* tc = (thread_context*) (work->arg);
-                
+
+                printf("Hi2 Block Number %d\n", tc->block_number);                
                 quick_data* q = (quick_data*) malloc(sizeof(quick_data));
                 q->buffer = (char*)malloc(tc->full_output_vector->total_elements);
                 memcpy(q->buffer, tc->full_output_vector->elements, tc->full_output_vector->occupied_elements * tc->full_output_vector->element_size);
                 q->length = tc->full_output_vector->occupied_elements;
-                //printf("Length: %d\n", q->length);
+                printf("Length: %d    Block Number: %d\n", q->length, tc->block_number);
+                printf("Dispatched Another Block\n");
+                
+                insert_into_sorted_linked_list(gc->processed_blocks, tc->block_number, (void*)q);
+                printf("Inserted Block into linked list\n");
+                
+                
+                enqueue(gc->pool->free_threads, mythread);
+                
                 if(gc->bytes_to_read != 0)
-                {                    
+                {        
                     tc = grab_another_block(gc, tc);
                     thread_context_init(tc);
                     dispatch(gc->pool, deflate_work, (void*)tc);
                 }
+                
                 else { gc->pool->shutdown = 1; }
                 
-                insert_into_sorted_linked_list(gc->processed_blocks, tc->block_number, (void*)q);
-                enqueue(gc->pool->free_threads, s);
+                
+                printf("Queued back free thread\n");
             }
             pthread_mutex_unlock(&(gc->pool->completed_threads_lock));
         }
@@ -336,9 +356,11 @@ ulg deflate(global_context* gc)
         first_pass = 0;
         if(gc->processed_blocks->head != NULL)
         {
-            printf("%d : %d\n", gc->processed_blocks->head->index, gc->next_block_to_output);
+            printf("Handling IO %d : %d\n", gc->processed_blocks->head->index, gc->next_block_to_output);
+            print_sorted_linked_list(gc->processed_blocks);
             while(gc->processed_blocks->head->index == gc->next_block_to_output)
             {
+                printf("%d : %d\n", gc->processed_blocks->head->index, gc->next_block_to_output);
                 if(gc->last_block_number == gc->processed_blocks->head->index) { quit_flag = 1; }
                 if(first_pass == 0)
                 {   pthread_mutex_lock(&(gc->output_block_lock));
@@ -350,8 +372,11 @@ ulg deflate(global_context* gc)
                 enqueue(gc->output_queue, block);
                 if(gc->processed_blocks->head == NULL) { break; }
             }
+            
+            if(first_pass == 1) { pthread_mutex_unlock(&gc->output_block_lock); }
         }
         
+        printf("Remaing Bytes: %llu\n", gc->bytes_to_read);
         if(gc->pool->shutdown == 1 && gc->pool->free_threads->size == gc->number_of_threads) break;
     }
 
@@ -400,7 +425,7 @@ void* deflate_work(void* arg)
         /* Insert the string window[strstart .. strstart+2] in the
          * dictionary, and set hash_head to the head of the hash chain:
          */
-         printf("Lookahead: %d + Remaining Bytes: %u\n", tc->lookahead, tc->full_input_buffer_remaining_bytes);
+        //printf("Lookahead: %d + Remaining Bytes: %u\n", tc->lookahead, tc->full_input_buffer_remaining_bytes);
         INSERT_STRING(tc->strstart, hash_head);
 
 
@@ -483,9 +508,13 @@ void* deflate_work(void* arg)
          * for the next match, plus MIN_MATCH bytes to insert the
          * string following the next match.
          */
+        //printf("Above While\n");
         while (tc->lookahead < MIN_LOOKAHEAD && !tc->eofile) fill_window(tc);
+        //printf("below while\n");
     }
+    //printf("Exited While\n");
     if(match_available) ct_tally (0, tc->window[tc->strstart-1], tc);
+    //printf("Done Tally\n");
 
     //printf("Last Block: %d", tc->last_block);
     if(tc->last_block) FLUSH_BLOCK(1); /* eof */

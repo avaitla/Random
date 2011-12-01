@@ -243,7 +243,9 @@ threadpool* create_threadpool(unsigned int num_threads_in_pool)
     pool->pending_job_requests = initialize_queue();
     pool->completed_threads = initialize_queue();
     pool->free_threads = initialize_queue();
-    pool->busy_threads = (spec_thread*) malloc(sizeof(spec_thread) * num_threads_in_pool);
+    
+    spec_thread* temp;
+    pool->busy_threads = (void**) malloc(sizeof(temp) * num_threads_in_pool);
     pool->shutdown = 0;
 
     //initialize mutex and condition variables.  
@@ -270,21 +272,22 @@ void* do_work(void* arg)
     while(1)
     {
 		pthread_mutex_lock(&(c->thread_lock));
-        while((c->shutdown == 0 && c->work == NULL) || (c->busy == 0))
+        while(c->shutdown == 0 && c->busy == 0)
             pthread_cond_wait(&(c->thread_cond),&(c->thread_lock));
 
 	    if(c->shutdown)
         { pthread_mutex_unlock(&(c->thread_lock)); pthread_exit(NULL); }
         
         work_t* job = (work_t*) c->work;
-        (job->routine) (job->arg); //free(job);
+        (job->routine) (job->arg); c->busy = 0;
+        
+        pthread_mutex_unlock(&(c->thread_lock));
         
         pthread_mutex_lock(&(c->pool->completed_threads_lock));
         enqueue(c->pool->completed_threads, &(c->thread_id));
         pthread_mutex_unlock(&(c->pool->completed_threads_lock));
+        printf("Sent Signal \n");
         
-        c->busy = 0;
-        pthread_mutex_unlock(&(c->thread_lock));
         pthread_cond_signal(&(c->pool->pending_job_requests_cond));
     }
 

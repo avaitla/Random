@@ -102,7 +102,7 @@ typedef struct _threadpool_st {
    	queue* completed_threads;
     
     queue* free_threads;
-    void* busy_threads;
+    void** busy_threads;
     
     int shutdown;
 } threadpool;
