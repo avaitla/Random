@@ -18,8 +18,8 @@ is why we call it pseudo gzip, since it is technically not RFC Gzip, but does th
 
 The next folder pgzip, implements true gzip parallelism. It follows a similar approach as pigz, but absolutely no
 source code is borrowed or taken as inspiration from that project. It is developed purely from the gzip source files,
-and proceeds to create a threadpool and then send chunks of data to free threads, and then takes finished work and flushes
-to a file appropriately. For the time being it only supports compression.
+and proceeds to create a threadpool and then send chunks of data to free threads, and then takes finished work and
+flushes to a file appropriately. For the time being it only supports compression.
 
 ------------------------------------------------------------------------------------------------------------------
 
@@ -37,3 +37,5 @@ Contributors:
     https://github.com/a-wild-tigger
     https://github.com/SeanHogan
     https://github.com/norseboar
+
+-------------------------------------------------------------------------------------------------------------------
