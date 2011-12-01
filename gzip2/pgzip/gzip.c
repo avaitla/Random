@@ -135,7 +135,6 @@ int main(int argc, char **argv)
 	FILE * fp = fopen(gc->out_filepath, "r");	
 	if (fp && canOverwriteOldOutput) {
 		printf("Old file exists, deleting it!\n");
-		exit(0);
 		fclose(fp);
 		remove(gc->out_filepath);
 	}	else if (fp) {

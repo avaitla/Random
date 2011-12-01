@@ -4,189 +4,189 @@
 #include <unistd.h>
 #include "contexts.h"
 
-// Global Context Variables Directly Used / Managed
-//  int level - Compression Level to Use
-//  unsigned long block_chunk_size;         /* the size to chunk the input file by for each thread */ 
-//  unsigned long long int bytes_to_read;   /* total number of bytes available to be read (effectively (ifile_size - bytes_in)) */
-//  unsigned int last_block_number;         /* the last block number to flush out, 0 if not computed yet */
-//  unsigned int block_number;              /* the next block read in will be this index */
-//  unsigned int blocks_read;               /* number of input block reads currently with access to a thread
-//                                             or that hasn't been flushed out yet, if this number is greater
-//                                             than 2*number_of_threads, we stop reading in more information
-//  pthread_mutex_t output_fd_lock;
-//  queue* output_queue;
-//  pthread_cond_t more_io_output;
-//  int  ofd;
-//  unsigned int number_of_threads;         /* number of threads we want to use */
-//  _threadpool* pool;                      /* pool of worker threads */
-//  pthread_mutex_t output_block_lock;      /* lock for threads to add their output buffers back to processed_blocks */
-//  queue* thread_return_queue;
-//  sorted_linked_list* processed_blocks;   /* blocks returned by threads (they should be accessed with the lock) */
-//  unsigned int next_block_to_output;      /* next chunk that needs to be sent to the ofd */
+	// Global Context Variables Directly Used / Managed
+	//  int level - Compression Level to Use
+	//  unsigned long block_chunk_size;         /* the size to chunk the input file by for each thread */ 
+	//  unsigned long long int bytes_to_read;   /* total number of bytes available to be read (effectively (ifile_size - bytes_in)) */
+	//  unsigned int last_block_number;         /* the last block number to flush out, 0 if not computed yet */
+	//  unsigned int block_number;              /* the next block read in will be this index */
+	//  unsigned int blocks_read;               /* number of input block reads currently with access to a thread
+	//                                             or that hasn't been flushed out yet, if this number is greater
+	//                                             than 2*number_of_threads, we stop reading in more information
+	//  pthread_mutex_t output_fd_lock;
+	//  queue* output_queue;
+	//  pthread_cond_t more_io_output;
+	//  int  ofd;
+	//  unsigned int number_of_threads;         /* number of threads we want to use */
+	//  _threadpool* pool;                      /* pool of worker threads */
+	//  pthread_mutex_t output_block_lock;      /* lock for threads to add their output buffers back to processed_blocks */
+	//  queue* thread_return_queue;
+	//  sorted_linked_list* processed_blocks;   /* blocks returned by threads (they should be accessed with the lock) */
+	//  unsigned int next_block_to_output;      /* next chunk that needs to be sent to the ofd */
 
 
-// Thread Context Variables Directly Used / Managed
-//  int attr;
-//  int method;
-//  ush deflate_flags;
-//  char* full_input_buffer;
-//  unsigned int full_input_buffer_size;
-//  char* full_output_buffer;
-//  unsigned int full_output_block_length;
-//  unsigned int block_number;
-//  int last_block;
-//  unsigned      lookahead;
-//  unsigned strstart;          /* window offset of current string */
-//  unsigned int prev_length;
-//  unsigned match_start;       /* window offset of current string */
-//  unsigned int max_lazy_match;
-//  uch* window;    /* Sliding window and suffix table (unlzw) */
-//  long block_start;
-//  int           eofile;        /* flag set at end of input file */
-//  unsigned good_match;
-//  ulg window_size;
-//  int nice_match;
-//  ush prev[WSIZE];
-//  unsigned max_chain_length;
-//  int compr_level;
-//  unsigned ins_h;
+	// Thread Context Variables Directly Used / Managed
+	//  int attr;
+	//  int method;
+	//  ush deflate_flags;
+	//  char* full_input_buffer;
+	//  unsigned int full_input_buffer_size;
+	//  char* full_output_buffer;
+	//  unsigned int full_output_block_length;
+	//  unsigned int block_number;
+	//  int last_block;
+	//  unsigned      lookahead;
+	//  unsigned strstart;          /* window offset of current string */
+	//  unsigned int prev_length;
+	//  unsigned match_start;       /* window offset of current string */
+	//  unsigned int max_lazy_match;
+	//  uch* window;    /* Sliding window and suffix table (unlzw) */
+	//  long block_start;
+	//  int           eofile;        /* flag set at end of input file */
+	//  unsigned good_match;
+	//  ulg window_size;
+	//  int nice_match;
+	//  ush prev[WSIZE];
+	//  unsigned max_chain_length;
+	//  int compr_level;
+	//  unsigned ins_h;
 
-// Functions Defined
-//      void lm_init (int pack_level, ush* flags, thread_context* tc) - Initialize the "longest match" 
-//                                                                      routines for a new worker thread
-//      void fill_window(thread_context* tc) - Fill the window when the lookahead becomes insufficient.
-//                                             Updates strstart and lookahead, and sets eofile if end of input file.
-//                                             IN assertion: lookahead < MIN_LOOKAHEAD && strstart + lookahead > 0
-//                                             OUT assertions: at least one byte has been read, or eofile is set;
-//                                             file reads are performed for at least two bytes (required for the
-//                                             translate_eol option).
-//      int longest_match(IPos cur_match, thread_context* tc) - return its length. Matches shorter or equal to prev_length 
-//                                                              are discarded, in which case the result is equal to prev_length
-//                                                              and match_start is garbage.
-//                                                              IN assertions: cur_match is the head of the hash chain for the current
-//                                                              string (strstart) and its distance is <= MAX_DIST, and prev_length >= 1
-//      void* deflate_work(void* arg) - This is the item that we give to the threadpool
-//      void thread_context_init(global_context* gc, thread_context* tc) - Initialize BitString and Trees Routines for Thread Context
-//      thread_context* grab_another_block(global_context* gc, thread_context* tc) - This will grab a block from the main file
-//                                                                                 and place it into the threads input buffers.
-//      void* io_out_function(void* arg) - This is the thread that outputs blocks to ofd
-//      ulg deflate(global_context* gc) - main entry point to setup threadpool and do core dispatching and maintenance
-//      config configuration_table[10] - Configuration Table For Different Compression Levels
-
-
-// Defines Used
-//      WSIZE - #define WSIZE 0x8000
-//      HASH_BITS - #define HASH_BITS  14
-//      HASH_SIZE - #define HASH_SIZE (unsigned)(1<<HASH_BITS)
-//      HASH_MASK - #define HASH_MASK (HASH_SIZE-1)
-//      WMASK - #define WMASK (WSIZE-1)
-//      NIL - #define NIL 0
-//      FAST - #define FAST 4
-//      SLOW - #define SLOW 2
-//      TOO_FAR - #define TOO_FAR 4096
-//      EQUAL - #define EQUAL 0
-//      MIN_LOOKAHEAD - #define MIN_LOOKAHEAD (MAX_MATCH+MIN_MATCH+1) 
-//      MIN_MATCH - #define MIN_MATCH  3
-//      MAX_MATCH - #define MAX_MATCH  258
-//      MAX_DIST - #define MAX_DIST  (WSIZE-MIN_LOOKAHEAD)
-//      FLUSH_BLOCK - #define FLUSH_BLOCK(eof) \
-//                    flush_block(tc->block_start >= 0L ? (char*)&(tc->window[(unsigned)(tc->block_start)]) : (char*)NULL, (long)(tc->strstart - tc->block_start), (eof), tc)
-//      Assert - #define Assert(cond,msg) {if(!(cond)) error(msg);}
-//      IPos - typedef unsigned IPos
-//      check_match - #define check_match(start, match, length, tc)
-//      INSERT_STRING - #define INSERT_STRING(s, match_head) \
-//                      (UPDATE_HASH(tc->ins_h, tc->window[(s) + MIN_MATCH-1]), \
-//                      tc->prev[(s) & WMASK] = match_head = (tc->prev + WSIZE)[tc->ins_h], \
-//                      (tc->prev + WSIZE)[tc->ins_h] = (s))
-//      UPDATE_HASH - #define UPDATE_HASH(h,c) (h = (((h)<<H_SHIFT) ^ (c)) & HASH_MASK)
-
-// Functions Used
-//      void error(char *m) - See util.c
-//      int thread_read_buf(char *buf, unsigned long size, thread_context* tc) - See zip.c 
-//      int ct_tally (int dist, int lc, thread_context* tc) - See trees.c
-//      void bi_init(thread_context* tc) - See bits.c
-//      void ct_init(int* attr, int* methodp, thread_context* tc) - See trees.c
-//      int file_read(char *buf, unsigned long size, global_context* gc) - See zip.c
-//      queue* initialize_queue() - See threads.c 
-//      int queue_empty(const queue* q) - See threads.c
-//      void enqueue(queue* q, void* object) - See threads.c
-//      void* dequeue(queue* q) - See threads.c
-//      void write_error() - See util.c
-//      void dispatch(_threadpool* from_me, void* (*dispatch_to_here) (void*), void *arg) - See threads.c
-//      void insert_into_sorted_linked_list(sorted_linked_list* list_to_insert_into, int index, void* data) - See threads.c 
-//      void* pop_top(sorted_linked_list* list) - See threads.c
-//      ulg flush_block(char* buf, ulg stored_len, int eof, thread_context* tc) - See trees.c
+	// Functions Defined
+	//      void lm_init (int pack_level, ush* flags, thread_context* tc) - Initialize the "longest match" 
+	//                                                                      routines for a new worker thread
+	//      void fill_window(thread_context* tc) - Fill the window when the lookahead becomes insufficient.
+	//                                             Updates strstart and lookahead, and sets eofile if end of input file.
+	//                                             IN assertion: lookahead < MIN_LOOKAHEAD && strstart + lookahead > 0
+	//                                             OUT assertions: at least one byte has been read, or eofile is set;
+	//                                             file reads are performed for at least two bytes (required for the
+	//                                             translate_eol option).
+	//      int longest_match(IPos cur_match, thread_context* tc) - return its length. Matches shorter or equal to prev_length 
+	//                                                              are discarded, in which case the result is equal to prev_length
+	//                                                              and match_start is garbage.
+	//                                                              IN assertions: cur_match is the head of the hash chain for the current
+	//                                                              string (strstart) and its distance is <= MAX_DIST, and prev_length >= 1
+	//      void* deflate_work(void* arg) - This is the item that we give to the threadpool
+	//      void thread_context_init(global_context* gc, thread_context* tc) - Initialize BitString and Trees Routines for Thread Context
+	//      thread_context* grab_another_block(global_context* gc, thread_context* tc) - This will grab a block from the main file
+	//                                                                                 and place it into the threads input buffers.
+	//      void* io_out_function(void* arg) - This is the thread that outputs blocks to ofd
+	//      ulg deflate(global_context* gc) - main entry point to setup threadpool and do core dispatching and maintenance
+	//      config configuration_table[10] - Configuration Table For Different Compression Levels
 
 
-void thread_context_init(thread_context* tc)
-{
-    bi_init(tc);
-    ct_init(&(tc->attr), &(tc->method), tc);
-    lm_init(tc->compr_level, &(tc->deflate_flags), tc);
-}
+	// Defines Used
+	//      WSIZE - #define WSIZE 0x8000
+	//      HASH_BITS - #define HASH_BITS  14
+	//      HASH_SIZE - #define HASH_SIZE (unsigned)(1<<HASH_BITS)
+	//      HASH_MASK - #define HASH_MASK (HASH_SIZE-1)
+	//      WMASK - #define WMASK (WSIZE-1)
+	//      NIL - #define NIL 0
+	//      FAST - #define FAST 4
+	//      SLOW - #define SLOW 2
+	//      TOO_FAR - #define TOO_FAR 4096
+	//      EQUAL - #define EQUAL 0
+	//      MIN_LOOKAHEAD - #define MIN_LOOKAHEAD (MAX_MATCH+MIN_MATCH+1) 
+	//      MIN_MATCH - #define MIN_MATCH  3
+	//      MAX_MATCH - #define MAX_MATCH  258
+	//      MAX_DIST - #define MAX_DIST  (WSIZE-MIN_LOOKAHEAD)
+	//      FLUSH_BLOCK - #define FLUSH_BLOCK(eof) \
+	//                    flush_block(tc->block_start >= 0L ? (char*)&(tc->window[(unsigned)(tc->block_start)]) : (char*)NULL, (long)(tc->strstart - tc->block_start), (eof), tc)
+	//      Assert - #define Assert(cond,msg) {if(!(cond)) error(msg);}
+	//      IPos - typedef unsigned IPos
+	//      check_match - #define check_match(start, match, length, tc)
+	//      INSERT_STRING - #define INSERT_STRING(s, match_head) \
+	//                      (UPDATE_HASH(tc->ins_h, tc->window[(s) + MIN_MATCH-1]), \
+	//                      tc->prev[(s) & WMASK] = match_head = (tc->prev + WSIZE)[tc->ins_h], \
+	//                      (tc->prev + WSIZE)[tc->ins_h] = (s))
+	//      UPDATE_HASH - #define UPDATE_HASH(h,c) (h = (((h)<<H_SHIFT) ^ (c)) & HASH_MASK)
 
-thread_context* new_thread_context(global_context* gc)
-{
-	thread_context* tc = (thread_context*) malloc(sizeof(thread_context));
-    memset((char*)tc, 0, sizeof(thread_context));
-	tc->full_input_buffer = (char*) malloc(gc->block_chunk_size);
-	tc->full_output_vector = init_vector(gc->block_chunk_size, sizeof(char));
-	tc->full_output_buffer_length = 0;
-	tc->eofile = 0; tc->compressed_len = 0;
-    tc->compr_level = gc->level;
-	return tc;
-}
+	// Functions Used
+	//      void error(char *m) - See util.c
+	//      int thread_read_buf(char *buf, unsigned long size, thread_context* tc) - See zip.c 
+	//      int ct_tally (int dist, int lc, thread_context* tc) - See trees.c
+	//      void bi_init(thread_context* tc) - See bits.c
+	//      void ct_init(int* attr, int* methodp, thread_context* tc) - See trees.c
+	//      int file_read(char *buf, unsigned long size, global_context* gc) - See zip.c
+	//      queue* initialize_queue() - See threads.c 
+	//      int queue_empty(const queue* q) - See threads.c
+	//      void enqueue(queue* q, void* object) - See threads.c
+	//      void* dequeue(queue* q) - See threads.c
+	//      void write_error() - See util.c
+	//      void dispatch(_threadpool* from_me, void* (*dispatch_to_here) (void*), void *arg) - See threads.c
+	//      void insert_into_sorted_linked_list(sorted_linked_list* list_to_insert_into, int index, void* data) - See threads.c 
+	//      void* pop_top(sorted_linked_list* list) - See threads.c
+	//      ulg flush_block(char* buf, ulg stored_len, int eof, thread_context* tc) - See trees.c
 
-thread_context* clean_old_thread_context(global_context* gc, thread_context* tc)
-{
-	tc->full_output_buffer_length = 0;
-	tc->eofile = 0; tc->compressed_len = 0;
-    tc->full_output_vector->occupied_elements = 0;
-	tc->full_output_buffer_length = 0;
-	tc->eofile = 0; tc->compressed_len = 0;
-    tc->compr_level = gc->level;
-	return tc;
-}
 
-thread_context* grab_another_block(global_context* gc, thread_context* tc)
-{
-    if(tc == NULL) tc = new_thread_context(gc);
-    else tc = clean_old_thread_context(gc, tc);
+	void thread_context_init(thread_context* tc)
+	{
+		bi_init(tc);
+		ct_init(&(tc->attr), &(tc->method), tc);
+		lm_init(tc->compr_level, &(tc->deflate_flags), tc);
+	}
 
-    if(gc->bytes_to_read == 0 || gc->bytes_to_read <= gc->block_chunk_size)
-        gc->last_block_number = gc->block_number;
+	thread_context* new_thread_context(global_context* gc)
+	{
+		thread_context* tc = (thread_context*) malloc(sizeof(thread_context));
+		memset((char*)tc, 0, sizeof(thread_context));
+		tc->full_input_buffer = (char*) malloc(gc->block_chunk_size);
+		tc->full_output_vector = init_vector(gc->block_chunk_size, sizeof(char));
+		tc->full_output_buffer_length = 0;
+		tc->eofile = 0; tc->compressed_len = 0;
+		tc->compr_level = gc->level;
+		return tc;
+	}
 
-    tc->block_number = gc->block_number;
-    gc->block_number += 1;
-    gc->blocks_read += 1;
-    
-    tc->l_desc.dyn_tree = tc->dyn_ltree;
-    tc->l_desc.static_tree = tc->static_ltree;
-    tc->l_desc.extra_bits = extra_lbits;
-    tc->l_desc.extra_base = LITERALS+1;
-    tc->l_desc.elems = L_CODES;
-    tc->l_desc.max_length = MAX_BITS;
-    tc->l_desc.max_code = 0;
-    
-    tc->d_desc.dyn_tree = tc->dyn_dtree;
-    tc->d_desc.static_tree = tc->static_dtree;
-    tc->d_desc.extra_bits = extra_dbits;
-    tc->d_desc.extra_base = 0;
-    tc->d_desc.elems = D_CODES;
-    tc->d_desc.max_length = MAX_BITS;
-    tc->d_desc.max_code = 0;
-    
-    tc->bl_desc.dyn_tree = tc->bl_tree;
-    tc->bl_desc.static_tree = (ct_data*) 0;
-    tc->bl_desc.extra_bits = extra_blbits;
-    tc->bl_desc.extra_base = 0;
-    tc->bl_desc.elems = BL_CODES;
-    tc->bl_desc.max_length = MAX_BITS;
-    tc->bl_desc.max_code = 0;
-    
-    tc->window_size = (ulg)2*WSIZE;
-    
-    //printf("Hello World!\n");
+	thread_context* clean_old_thread_context(global_context* gc, thread_context* tc)
+	{
+		tc->full_output_buffer_length = 0;
+		tc->eofile = 0; tc->compressed_len = 0;
+		tc->full_output_vector->occupied_elements = 0;
+		tc->full_output_buffer_length = 0;
+		tc->eofile = 0; tc->compressed_len = 0;
+		tc->compr_level = gc->level;
+		return tc;
+	}
+
+	thread_context* grab_another_block(global_context* gc, thread_context* tc)
+	{
+		if(tc == NULL) tc = new_thread_context(gc);
+		else tc = clean_old_thread_context(gc, tc);
+
+		if(gc->bytes_to_read == 0 || gc->bytes_to_read <= gc->block_chunk_size)
+			gc->last_block_number = gc->block_number;
+
+		tc->block_number = gc->block_number;
+		gc->block_number += 1;
+		gc->blocks_read += 1;
+		
+		tc->l_desc.dyn_tree = tc->dyn_ltree;
+		tc->l_desc.static_tree = tc->static_ltree;
+		tc->l_desc.extra_bits = extra_lbits;
+		tc->l_desc.extra_base = LITERALS+1;
+		tc->l_desc.elems = L_CODES;
+		tc->l_desc.max_length = MAX_BITS;
+		tc->l_desc.max_code = 0;
+		
+		tc->d_desc.dyn_tree = tc->dyn_dtree;
+		tc->d_desc.static_tree = tc->static_dtree;
+		tc->d_desc.extra_bits = extra_dbits;
+		tc->d_desc.extra_base = 0;
+		tc->d_desc.elems = D_CODES;
+		tc->d_desc.max_length = MAX_BITS;
+		tc->d_desc.max_code = 0;
+		
+		tc->bl_desc.dyn_tree = tc->bl_tree;
+		tc->bl_desc.static_tree = (ct_data*) 0;
+		tc->bl_desc.extra_bits = extra_blbits;
+		tc->bl_desc.extra_base = 0;
+		tc->bl_desc.elems = BL_CODES;
+		tc->bl_desc.max_length = MAX_BITS;
+		tc->bl_desc.max_code = 0;
+		
+		tc->window_size = (ulg)2*WSIZE;
+		
+		//printf("Hello World!\n");
     if(gc->bytes_to_read > gc->block_chunk_size)
     {
         tc->full_input_buffer_size = gc->block_chunk_size;
@@ -248,7 +248,7 @@ void* io_out_function(void* arg)
 	            if (n == (unsigned)-1) write_error();
                 remaining_bytes -= n; written_bytes += n;
 	        }
-            printf("Flushed a Block!\n");
+           // printf("Flushed a Block!\n");
 
             //free(data->buffer); free(data);
         }
@@ -267,7 +267,7 @@ ulg deflate(global_context* gc)
     {
 		if(gc->bytes_to_read > 0)
         {	
-            printf("GC->bytes_to_read = %llu\n", gc->bytes_to_read);
+            //printf("GC->bytes_to_read = %llu\n", gc->bytes_to_read);
 			thread_context* tc = grab_another_block(gc, NULL);
             thread_context_init(tc);
 			if(tc == NULL) { break; }
@@ -281,58 +281,57 @@ ulg deflate(global_context* gc)
     queue* temp = initialize_queue();
     while(1)
     {
-        printf("Entered While Loop\n");
+        //printf("Entered While Loop\n");
         pthread_mutex_lock(&(gc->pool->pending_job_requests_lock));
         while(queue_empty(gc->pool->pending_job_requests) && queue_empty(gc->pool->completed_threads) && !(gc->pool->shutdown))
             pthread_cond_wait(&(gc->pool->pending_job_requests_cond), &(gc->pool->pending_job_requests_lock));
             
-        printf("Got Lock!\n");
+       // printf("Got Lock!\n");
         while(!queue_empty(gc->pool->pending_job_requests) && !queue_empty(gc->pool->free_threads))
         {
             spec_thread* th = dequeue(gc->pool->free_threads);
             work_t* work = dequeue(gc->pool->pending_job_requests);
-            printf("Thread dequeued as free thread %d\n", th->thread_id);
+           // printf("Thread dequeued as free thread %d\n", th->thread_id);
             Assert(th->busy == 0, "Why is thread Busy?");
             pthread_mutex_lock(&th->thread_lock);
-            printf("Got internal lock!\n");
+           // printf("Got internal lock!\n");
             th->work = (void*) work; th->busy = 1;
             spec_thread** p = ((spec_thread**) gc->pool->busy_threads);
             p[th->thread_id] = th;
             pthread_mutex_unlock(&th->thread_lock);
-            printf("Can I acquire Lock?\n");
+           // printf("Can I acquire Lock?\n");
             pthread_cond_signal(&th->thread_cond);
         }
         
         pthread_mutex_unlock(&(gc->pool->pending_job_requests_lock));
-        printf("Freed Lock\n");
+       // printf("Freed Lock\n");
 
         if(!queue_empty(gc->pool->completed_threads))
         {
             pthread_mutex_lock(&(gc->pool->completed_threads_lock));
             while(!queue_empty(gc->pool->completed_threads))
             {
-                printf("Grabbed A completed Block\n");
+               // printf("Grabbed A completed Block\n");
                 int* it = (int*) dequeue(gc->pool->completed_threads);
-                printf("Thread Number: %d", *it);
+               // printf("Thread Number: %d", *it);
                 spec_thread** s = (spec_thread**) (gc->pool->busy_threads);
-                printf("Successful Cast\n");
+               // printf("Successful Cast\n");
                 spec_thread* mythread = (spec_thread*) s[*it];
-                printf("mythread->thread_id: %d\n", mythread->thread_id);
+//                printf("mythread->thread_id: %d\n", mythread->thread_id);
                 work_t* work = (work_t*) mythread->work;
                 //if(work == NULL) { gc->pool->shutdown = 1; printf("Null Work\n"); break; }
-                printf("Hi1\n");
+               // printf("Hi1\n");
                 thread_context* tc = (thread_context*) (work->arg);
-
-                printf("Hi2 Block Number %d\n", tc->block_number);                
+               // printf("Hi2 Block Number %d\n", tc->block_number);                
                 quick_data* q = (quick_data*) malloc(sizeof(quick_data));
                 q->buffer = (char*)malloc(tc->full_output_vector->total_elements);
                 memcpy(q->buffer, tc->full_output_vector->elements, tc->full_output_vector->occupied_elements * tc->full_output_vector->element_size);
                 q->length = tc->full_output_vector->occupied_elements;
-                printf("Length: %d    Block Number: %d\n", q->length, tc->block_number);
-                printf("Dispatched Another Block\n");
+              //  printf("Length: %d    Block Number: %d\n", q->length, tc->block_number);
+               // printf("Dispatched Another Block\n");
                 
                 insert_into_sorted_linked_list(gc->processed_blocks, tc->block_number, (void*)q);
-                printf("Inserted Block into linked list\n");
+                //printf("Inserted Block into linked list\n");
                 
                 
                 enqueue(gc->pool->free_threads, mythread);
@@ -347,7 +346,7 @@ ulg deflate(global_context* gc)
                 else { gc->pool->shutdown = 1; }
                 
                 
-                printf("Queued back free thread\n");
+               // printf("Queued back free thread\n");
             }
             pthread_mutex_unlock(&(gc->pool->completed_threads_lock));
         }
@@ -356,11 +355,11 @@ ulg deflate(global_context* gc)
         first_pass = 0;
         if(gc->processed_blocks->head != NULL)
         {
-            printf("Handling IO %d : %d\n", gc->processed_blocks->head->index, gc->next_block_to_output);
+           // printf("Handling IO %d : %d\n", gc->processed_blocks->head->index, gc->next_block_to_output);
             print_sorted_linked_list(gc->processed_blocks);
             while(gc->processed_blocks->head->index == gc->next_block_to_output)
             {
-                printf("%d : %d\n", gc->processed_blocks->head->index, gc->next_block_to_output);
+               // printf("%d : %d\n", gc->processed_blocks->head->index, gc->next_block_to_output);
                 if(gc->last_block_number == gc->processed_blocks->head->index) { quit_flag = 1; }
                 if(first_pass == 0)
                 {   pthread_mutex_lock(&(gc->output_block_lock));
@@ -376,7 +375,7 @@ ulg deflate(global_context* gc)
             if(first_pass == 1) { pthread_mutex_unlock(&gc->output_block_lock); }
         }
         
-        printf("Remaing Bytes: %llu\n", gc->bytes_to_read);
+       // printf("Remaing Bytes: %llu\n", gc->bytes_to_read);
         if(gc->pool->shutdown == 1 && gc->pool->free_threads->size == gc->number_of_threads) break;
     }
 
@@ -412,7 +411,7 @@ ulg deflate(global_context* gc)
  */
 void* deflate_work(void* arg)
 {
-    printf("Started Deflate Work\n");
+   // printf("Started Deflate Work\n");
     thread_context* tc = (thread_context*)arg;
     IPos hash_head = 0;          /* head of hash chain */
     IPos prev_match;         /* previous match */
@@ -521,7 +520,7 @@ void* deflate_work(void* arg)
     else FLUSH_BLOCK(0);
     flush_outbuf(tc);
 
-    printf("Completeing Deflate Work");	
+    //printf("Completeing Deflate Work");	
     return NULL;
 }
 

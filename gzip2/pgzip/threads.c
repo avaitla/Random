@@ -146,12 +146,14 @@ void destroy_sorted_linked_list(sorted_linked_list* lst)
 
 void print_sorted_linked_list(sorted_linked_list* lst)
 {
-    printf("List Contains %d Elements\n-----------------------\n", lst->length);
+    //printf("List Contains %d Elements\n-----------------------\n", lst->length);
     sorted_linked_list_node* cur = lst->head;
     if(lst->length != 0)
     {
-        while(cur != NULL) { printf("%d -> ", cur->index); cur = cur->next;}
-        printf("NULL\n");        
+        while(cur != NULL) { //printf("%d -> ", cur->index); 
+			cur = cur->next;}
+
+        //printf("NULL\n");        
     }
 }
 
@@ -286,7 +288,7 @@ void* do_work(void* arg)
         pthread_mutex_lock(&(c->pool->completed_threads_lock));
         enqueue(c->pool->completed_threads, &(c->thread_id));
         pthread_mutex_unlock(&(c->pool->completed_threads_lock));
-        printf("Sent Signal \n");
+       // printf("Sent Signal \n");
         
         pthread_cond_signal(&(c->pool->pending_job_requests_cond));
     }
