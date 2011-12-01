@@ -1,5 +1,8 @@
 all: pgzip
 
+debug:		gzip.c bits.c deflate.c util.c trees.c threads.c
+		gcc -g -lpthread gzip.c bits.c deflate.c util.c trees.c threads.c zip.c -o debug_pgzip
+
 pgzip:		gzip.o zip.o deflate.o trees.o bits.o util.o threads.o
 		gcc -g -lpthread gzip.o zip.o deflate.o trees.o bits.o util.o threads.o -o pgzip
 

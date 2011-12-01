@@ -83,7 +83,7 @@ int main(int argc, char **argv)
       printf("Decompression Not Supported! Use standard GZIP.\n"); return 0;
     }
 
-    gc->block_chunk_size = 21000000;
+    gc->block_chunk_size = 100000;
     gc->number_of_threads = 6; 
 
 

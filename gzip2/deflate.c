@@ -141,6 +141,10 @@ thread_context* clean_old_thread_context(global_context* gc, thread_context* tc)
 {
 	tc->full_output_buffer_length = 0;
 	tc->eofile = 0; tc->compressed_len = 0;
+    tc->full_output_vector->occupied_elements = 0;
+	tc->full_output_buffer_length = 0;
+	tc->eofile = 0; tc->compressed_len = 0;
+    tc->compr_level = gc->level;
 	return tc;
 }
 
@@ -179,6 +183,8 @@ thread_context* grab_another_block(global_context* gc, thread_context* tc)
     tc->bl_desc.elems = BL_CODES;
     tc->bl_desc.max_length = MAX_BITS;
     tc->bl_desc.max_code = 0;
+    
+    tc->window_size = (ulg)2*WSIZE;
     
     //printf("Hello World!\n");
     if(gc->bytes_to_read > gc->block_chunk_size)
@@ -260,7 +266,7 @@ ulg deflate(global_context* gc)
     {
 		if(gc->bytes_to_read > 0)
         {	
-            //printf("GC->bytes_to_read = %llu\n", gc->bytes_to_read);
+            printf("GC->bytes_to_read = %llu\n", gc->bytes_to_read);
 			thread_context* tc = grab_another_block(gc, NULL);
             thread_context_init(tc);
 			if(tc == NULL) { break; }
@@ -276,7 +282,7 @@ ulg deflate(global_context* gc)
     {
         //printf("Entered While Loop\n");
         pthread_mutex_lock(&(gc->pool->pending_job_requests_lock));
-        while(queue_empty(gc->pool->pending_job_requests) && queue_empty(gc->pool->completed_threads))
+        while(queue_empty(gc->pool->pending_job_requests) && queue_empty(gc->pool->completed_threads) && !(gc->pool->shutdown))
             pthread_cond_wait(&(gc->pool->pending_job_requests_cond), &(gc->pool->pending_job_requests_lock));
             
         //printf("Got Lock!\n");
@@ -304,6 +310,7 @@ ulg deflate(global_context* gc)
                 int* it = (int*) dequeue(gc->pool->completed_threads);
                 spec_thread* s = (spec_thread*) (gc->pool->busy_threads + (*it));
                 work_t* work = (work_t*) s->work;
+                if(work == NULL) { gc->pool->shutdown = 1; break; }
                 thread_context* tc = (thread_context*) (work->arg);
                 
                 quick_data* q = (quick_data*) malloc(sizeof(quick_data));
@@ -314,6 +321,7 @@ ulg deflate(global_context* gc)
                 if(gc->bytes_to_read != 0)
                 {                    
                     tc = grab_another_block(gc, tc);
+                    thread_context_init(tc);
                     dispatch(gc->pool, deflate_work, (void*)tc);
                 }
                 else { gc->pool->shutdown = 1; }
@@ -328,7 +336,7 @@ ulg deflate(global_context* gc)
         first_pass = 0;
         if(gc->processed_blocks->head != NULL)
         {
-            //printf("%d : %d\n", gc->processed_blocks->head->index, gc->next_block_to_output);
+            printf("%d : %d\n", gc->processed_blocks->head->index, gc->next_block_to_output);
             while(gc->processed_blocks->head->index == gc->next_block_to_output)
             {
                 if(gc->last_block_number == gc->processed_blocks->head->index) { quit_flag = 1; }
@@ -379,7 +387,7 @@ ulg deflate(global_context* gc)
  */
 void* deflate_work(void* arg)
 {
-    //printf("Started Deflate Work\n");
+    printf("Started Deflate Work\n");
     thread_context* tc = (thread_context*)arg;
     IPos hash_head = 0;          /* head of hash chain */
     IPos prev_match;         /* previous match */
@@ -392,7 +400,7 @@ void* deflate_work(void* arg)
         /* Insert the string window[strstart .. strstart+2] in the
          * dictionary, and set hash_head to the head of the hash chain:
          */
-
+         printf("Lookahead: %d + Remaining Bytes: %u\n", tc->lookahead, tc->full_input_buffer_remaining_bytes);
         INSERT_STRING(tc->strstart, hash_head);
 
 
@@ -484,7 +492,7 @@ void* deflate_work(void* arg)
     else FLUSH_BLOCK(0);
     flush_outbuf(tc);
 
-    //printf("Completeing Deflate Work");	
+    printf("Completeing Deflate Work");	
     return NULL;
 }
 
@@ -645,6 +653,7 @@ void fill_window(thread_context* tc)
         /* By the IN assertion, the window is not empty so we can't confuse
          * more == 0 with more == 64K on a 16 bit machine.
          */
+        //printf("Window Size: %lu, %lu", tc->window_size, (ulg)2*WSIZE);
         Assert(tc->window_size == (ulg)2*WSIZE, "no sliding with BIG_MEM");
 
         memcpy((char*)(tc->window), (char*)tc->window+WSIZE, (unsigned)WSIZE);
