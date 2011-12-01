@@ -1,11 +1,32 @@
-Parallel Implementation of Gzip using Pthreads. Only Supports Compression.
+---------------------------------------------------------------------------------------------------------------
 
+This is a set of various implementations, both sequential and parallel of the gzip compression program.
+There are four folders: gzip, pigz, quickzip, and pgzip. The folder gzip is the standard implementation
+of gzip found at www.gzip.org. There is a script called init_script.sh which can be run and will download
+the file, build it, and copy the executable to the directory. The folder pigz is the standard implementation
+of parallel gzip found at www.zlib.net/pigz/. There is a script called init_script.sh which can be run
+and will download the file, build it, and copy the executable to the directory. These are the standard
+two implementations mot people use.
 
-Usage: Download this Repo, then simply run make.
+The next folder quickzip, implements pseudo gzip parallelism, by simply splitting a file into chunks (unix
+split command) and then compresses each in a background process, we could join them back by removing the last
+two bytes in each chunk and then cat the compressed files and add a crc byte and a length byte. Furthermore
+we would need to remove the end block codes of each seperate chunk except the last one to compy with gzip file
+format. However we do not join in this manner because we wanted a clean implemenation and did not want to modify
+end chunk codes, which would need to be done in the gzip src (see LINE 653 in deflate.c source from gzip).
 
-Now you can do:
+The next folder pgzip, implements true gzip parallelism. It follows a similar approach as pigz, but absolutely no
+source code is borrowed or taken as inspiration. It is developed purely from the gzip source files, and proceeds
+to create a threadpool and then send chunks of data to free threads, and then takes finished work and flushes
+to a file appropriately. For the time being it only supports compression.
 
-./pgzip file_to_be_compressed 
+------------------------------------------------------------------------------------------------------------------
 
-Eventually we will allow you to specify the number of threads and chunk size as command line argument.
-Defaults are 6 threads chunking at 200 mb.
+Build Details:
+
+    gzip: simply go to directory gzip and run init_script.sh
+    pigz: simply go to directory pigz and run init_script.sh
+    pgzip: simply go to directory pgzip and run make
+    quickzip: depends on having gzip and python, but otherwise you're set
+
+------------------------------------------------------------------------------------------------------------------

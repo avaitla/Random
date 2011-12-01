@@ -1,10 +1,6 @@
 import os, sys, re
 import shlex, subprocess
 
-def create_random_file(out_filename, megabytes):
-    if(not os.path.isfile(out_filename)):
-        os.system("dd if=/dev/urandom of=%s bs=%dM count=2" % (out_filename, megabytes))
-
 def compress_file(filename, megabytes, fn = "temp"):
     process_list = list()
     os.system("(rm -rf %s && mkdir %s && cd %s && split -b%dm ../%s part)" % (fn, fn, fn, megabytes, filename))
@@ -29,12 +25,22 @@ def decompress_file(filename, fn = "temp"):
 
 
 
+# Basic usage
 
+#in_filename = "a.log"
+#out_filename = "a.test"
+#chunk_size = 30
 
-in_filename = "a.log"
-out_filename = "a.test"
-chunk_size = 30
-
-create_random_file(in_filename, 500) 
+#create_random_file(in_filename, 500) 
 #compress_file(in_filename, chunk_size)
 #decompress_file(out_filename)
+
+if __name__ == "__main__":
+    if(len(sys.argv) < 2):
+        print "First Argument Must be File to Compress"
+        sys.exit(1)
+    if(not os.path.isfile(sys.argv[1])):
+        print "First Argument is Not Valid File Name"
+        sys.exit(1)
+    default_chunk_size = 100
+    compress_file(sys.argv[1], default_chunk_size)
