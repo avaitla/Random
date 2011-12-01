@@ -562,7 +562,7 @@ int longest_match(IPos cur_match, thread_context* tc)
         /* The funny "do {}" generates better code on most compilers */
 
         /* Here, scan <= window+strstart+257 */
-        Assert(scan <= tc->window+(unsigned)(tc->window_size-1), "wild scan");
+        //Assert(scan <= tc->window + (unsigned)(tc->window_size-1), "wild scan");
         if (*scan == *match) scan++;
 
         len = (MAX_MATCH - 1) - (int)(strend-scan);
