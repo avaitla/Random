@@ -1,5 +1,13 @@
 ---------------------------------------------------------------------------------------------------------------
 
+To test out the suite, run ./test_suite.sh. This will get you all the binaries and test it on a bunch of files.
+The output times and other info will go to tso.txt.
+
+The test suite only does file sizes of 20, 100 and 250 MB, though if you wish you can also do them for 500 MB, 
+750, 1000, 2000 (or any size you desire) by commenting out/adding the desired lines in test_suite.sh.
+
+---------------------------------------------------------------------------------------------------------------
+
 This is a set of various implementations, both sequential and parallel of the gzip compression program.
 There are four folders: gzip, pigz, quickzip, and pgzip. The folder gzip is the standard implementation
 of gzip found at www.gzip.org. There is a script called init_script.sh which can be run and will download

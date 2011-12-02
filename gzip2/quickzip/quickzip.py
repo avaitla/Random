@@ -36,17 +36,20 @@ def decompress_file(filename, fn = "temp", gzip_exec = "gzip"):
 #decompress_file(out_filename)
 
 if __name__ == "__main__":
-
     gzip_exec = "gzip"
-    if(os.path.isfile("../gzip/gzip")):
-         gzip_exec = "../gzip/gzip"
+    path_prefix = os.path.dirname(os.path.abspath(__file__))
+    gzip_exec_path = os.path.join(path_prefix, "../gzip/gzip")
+
+    if(os.path.isfile(gzip_exec_path)):
+         gzip_exec = gzip_exec_path
 
     else:
-        if(os.path.isfile("../gzip/init_script.sh")):
-            os.system("(cd ../gzip && chmod u+x init_script.sh && ./init_script.sh)")
+        temp_init = os.path.join(path_prefix, "../gzip/init_script.sh")
+        if(os.path.isfile(temp_init)):
+            os.system("(cd %s && chmod u+x init_script.sh && ./init_script.sh)" % os.path.dirname(temp_init))
 
-        if(os.path.isfile("../gzip/gzip")):
-            gzip_exec = "../gzip/gzip"
+        if(os.path.isfile(gzip_exec_path)):
+            gzip_exec = gzip_exec_path
 
     if(len(sys.argv) < 2):
         print "First Argument Must be File to Compress"
@@ -55,6 +58,8 @@ if __name__ == "__main__":
         print "First Argument is Not Valid File Name"
         sys.exit(1)
 
-
     default_chunk_size = 100
-    compress_file(sys.argv[1], default_chunk_sizei, gzip_exec = gzip_exec)
+    if(len(sys.argv) < 3):
+        default_chunk_size = int(sys.argv[2])
+
+    compress_file(sys.argv[1], default_chunk_size, gzip_exec = gzip_exec)
