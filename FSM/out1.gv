@@ -1,0 +1,14 @@
+digraph G {
+n0[label="State 1",shape="doublecircle"];
+n1[label="State 2",shape="circle"];
+n2[label="State 3",shape="circle"];
+n3[label="State 4",shape="circle"];
+n4[label="State 5",shape="circle"];
+n4 -> n0;
+n0 -> n1;
+n0 -> n2;
+n1 -> n3;
+n2 -> n3;
+n3 -> n4;
+
+}
