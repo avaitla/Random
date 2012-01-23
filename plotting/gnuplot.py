@@ -1,3 +1,5 @@
+#Python Port of http://users.softlab.ntua.gr/~ttsiod/gnuplotStreaming.html
+
 import os, sys, time
 from subprocess import Popen, PIPE
 
