@@ -1,0 +1,37 @@
+README
+-----------------------
+
+See http://www.faculty.idc.ac.il/arik/site/seam-carve.asp for the awesome paper!!!
+
+For some reason the implementation is somewhat slow… You can use psyco, but I'm not sure when I'll get around to optimizing it.
+
+A sample image called "rawimage.jpg" is included in this folder. If you simply run "python seamcarving.py" in a terminal window the program will generate the image "outputverticalremoval.png" which is the image with 200 vertical seams removed. You can view the source for further instructions on how to insert and remove both horizontal and vertical seams. Usage code is replicated here:
+
+
+if __name__=="__main__":
+    myimage=SEAMCARVING("rawimage.jpg")
+    
+    #USAGE FOR DELETING SEAMS
+    #The first argument is what type of seams you want removed
+    #     the options are "horizontal" and "vertical"
+    #The second argument is the number of seams of that type you want removed 
+    #     (in this case we remove 200 horizontal seams)
+    #The third argument is option an defaults to False
+    #     it is used if you want to output the file once the seam removal
+    #     is completed. If you enter True it requires that you provide
+    #     the fourth filename argument as well
+    #The fourth argument is the name of the file to output to if you are outputting
+    myimage.runremoval("vertical", 200, True, "outputverticalremoval")
+
+
+    #USAGE FOR Inserting SEAMS
+    #The first argument is what type of seams you want inserted
+    #     the options are "horizontal" and "vertical"
+    #The second argument is the number of seams of that type you want removed 
+    #     (in this case we remove 200 horizontal seams)
+    #The third argument is option an defaults to False
+    #     it is used if you want to output the file once the seam removal
+    #     is completed. If you enter True it requires that you provide
+    #     the fourth filename argument as well
+    #The fourth argument is the name of the file to output to if you are outputting
+    #myimage.runinsertion("vertical", 50, True, "vertseaminsertionmyfile")
