@@ -1,9 +1,9 @@
 {-# LANGUAGE BangPatterns #-}
 
 -- Taken from C++ implementation http://www.relisoft.com/science/Physics/fft.html
--- Truly worth the read!!!
+-- Truly worth the read!!! Implementation of standard nlogn butterfly inplace fft.
 
-module FFT (runFFT) where
+module FFT (runFFT, initDFT, FFTStore, runFFT') where
 
 import qualified Data.Vector as V
 import qualified Data.Vector.Generic as G
