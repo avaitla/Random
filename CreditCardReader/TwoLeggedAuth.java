@@ -4,9 +4,9 @@ import org.scribe.model.*;
 import org.scribe.oauth.*;
 
 public class TwoLeggedAuth {
-    private static final String PROTECTED_RESOURCE_URL_Primary = "http://207.291.12.101";
-    private static final String PROTECTED_RESOURCE_URL_Backup1 = "http://207.291.12.100";
-    private static final String PROTECTED_RESOURCE_URL_Backup2 = "http://207.291.12.99";
+    private static final String PROTECTED_RESOURCE_URL_Primary = "https://207.291.12.101";
+    private static final String PROTECTED_RESOURCE_URL_Backup1 = "https://207.291.12.100";
+    private static final String PROTECTED_RESOURCE_URL_Backup2 = "https://207.291.12.99";
     
     String status;
     
